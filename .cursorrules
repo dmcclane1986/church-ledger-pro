@@ -1,0 +1,87 @@
+# Church Ledger Pro - Development Rules
+
+## Database Rules
+
+1. **Double-Entry Principle**: Every transaction MUST have balanced debits and credits
+   - Always create journal_entries first, then ledger_lines
+   - Total debits must equal total credits
+   - Use the journal_entry_balances view to verify
+
+2. **Account Types and Normal Balances**:
+   - Assets: Debit increases, Credit decreases
+   - Liabilities: Credit increases, Debit decreases
+   - Equity: Credit increases, Debit decreases
+   - Income/Revenue: Credit increases, Debit decreases
+   - Expenses: Debit increases, Credit decreases
+
+3. **Fund Accounting**:
+   - Always specify fund_id on every ledger_line
+   - Respect is_restricted flag on funds
+   - Keep restricted funds separate in reports
+
+## Code Conventions
+
+1. **Server vs Client**:
+   - Database operations use Server Actions (app/actions/)
+   - Forms are Client Components ('use client')
+   - Pages are Server Components by default
+
+2. **TypeScript Types**:
+   - Import from @/types/database.types.ts
+   - Use Database['public']['Tables']['table_name']['Row'] pattern
+   - Always type function parameters and returns
+
+3. **Error Handling**:
+   - Always wrap database operations in try-catch
+   - Return { success: boolean, error?: string } from server actions
+   - Display errors to users in the UI
+   - Log errors to console for debugging
+
+4. **Supabase Client**:
+   - Use @/lib/supabase/client.ts for client-side
+   - Use @/lib/supabase/server.ts for server actions
+   - Both are typed with Database generic
+
+## Transaction Recording Rules
+
+When recording transactions:
+
+1. **Revenue (Income)**:
+   - Debit: Cash/Checking account (Asset)
+   - Credit: Income account (Income)
+
+2. **Expenses**:
+   - Debit: Expense account (Expense)
+   - Credit: Cash/Checking account (Asset)
+
+3. **Transfers Between Funds**:
+   - Use same account for both lines
+   - Different fund_id values
+   - Both lines use same journal_entry_id
+
+## File Organization
+
+- `/app` - Next.js app router pages
+- `/app/actions` - Server actions for mutations
+- `/components` - React components (mostly client components)
+- `/lib` - Utilities and clients
+- `/types` - TypeScript type definitions
+
+## Adding New Features
+
+When adding new transaction types:
+
+1. Create server action in /app/actions/
+2. Implement double-entry logic with validation
+3. Create form component in /components/
+4. Add page in /app/[feature-name]/
+5. Update navigation in app/layout.tsx
+
+## Testing Transactions
+
+Always verify with SQL:
+```sql
+SELECT * FROM journal_entry_balances WHERE is_balanced = false;
+```
+
+This should return no rows in a healthy system.
