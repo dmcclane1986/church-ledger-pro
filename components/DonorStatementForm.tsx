@@ -177,6 +177,9 @@ export default function DonorStatementForm({ donors }: DonorStatementFormProps) 
                       Description
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Fund
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
@@ -186,7 +189,7 @@ export default function DonorStatementForm({ donors }: DonorStatementFormProps) 
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {statementData.contributions.map((contribution, index) => (
-                    <tr key={index}>
+                    <tr key={index} className={contribution.is_in_kind ? 'bg-blue-50' : ''}>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {formatDate(contribution.entry_date)}
                       </td>
@@ -196,6 +199,15 @@ export default function DonorStatementForm({ donors }: DonorStatementFormProps) 
                           <span className="text-xs text-gray-500 ml-1">
                             (Ref: {contribution.reference_number})
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {contribution.is_in_kind ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            In-Kind
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">Cash</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
@@ -209,7 +221,7 @@ export default function DonorStatementForm({ donors }: DonorStatementFormProps) 
                 </tbody>
                 <tfoot className="bg-gray-50">
                   <tr>
-                    <td colSpan={3} className="px-4 py-4 text-right font-bold text-gray-900">
+                    <td colSpan={4} className="px-4 py-4 text-right font-bold text-gray-900">
                       Total Contributions:
                     </td>
                     <td className="px-4 py-4 text-right font-bold text-gray-900 text-lg">
@@ -229,6 +241,11 @@ export default function DonorStatementForm({ donors }: DonorStatementFormProps) 
             <ul className="space-y-1 list-disc list-inside">
               <li>This statement reflects contributions received and recorded during the calendar year {statementData.year}.</li>
               <li>No goods or services were provided in exchange for these contributions.</li>
+              <li>
+                <strong>In-Kind (Non-Cash) Donations:</strong> Items marked as "In-Kind" represent non-cash donations. 
+                Per IRS guidelines, the donor is responsible for determining and documenting the fair market value of in-kind donations. 
+                The church provides acknowledgment of receipt but does not assign valuation.
+              </li>
               <li>Please consult with a tax professional regarding the deductibility of these contributions.</li>
               <li>Keep this statement for your tax records.</li>
             </ul>

@@ -20,6 +20,7 @@ export interface DonorContribution {
   amount: number
   fund_name: string
   reference_number: string | null
+  is_in_kind: boolean
 }
 
 export interface DonorStatementData {
@@ -148,7 +149,7 @@ export async function fetchDonorStatement(
     // Fetch all journal entries for this donor in the year
     const { data: journalEntries, error: entriesError } = await supabase
       .from('journal_entries')
-      .select('id, entry_date, description, reference_number')
+      .select('id, entry_date, description, reference_number, is_in_kind')
       .eq('donor_id', donorId)
       .gte('entry_date', startDate)
       .lte('entry_date', endDate)
@@ -199,6 +200,7 @@ export async function fetchDonorStatement(
           amount: entryAmount,
           fund_name: fundName,
           reference_number: entry.reference_number,
+          is_in_kind: entry.is_in_kind || false,
         })
         totalAmount += entryAmount
       }

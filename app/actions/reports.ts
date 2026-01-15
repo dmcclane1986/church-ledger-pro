@@ -1134,3 +1134,135 @@ export async function fetchYTDFundBalances(): Promise<{
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
+
+export interface AnnualGivingGift {
+  entry_date: string
+  description: string
+  account_name: string
+  account_number: number
+  fund_name: string
+  reference_number: string | null
+  amount: number
+  is_in_kind: boolean
+}
+
+export interface AnnualGivingData {
+  donor_id: string
+  donor_name: string
+  donor_address: string | null
+  donor_email: string | null
+  year: number
+  gifts: AnnualGivingGift[]
+  cash_gifts: AnnualGivingGift[]
+  in_kind_gifts: AnnualGivingGift[]
+  total_cash_amount: number
+}
+
+/**
+ * Get annual giving statement for a donor
+ * Filters for Income accounts (4000s) and excludes voided entries
+ */
+export async function getAnnualGiving(
+  donorId: string,
+  year: number
+): Promise<{ success: boolean; data?: AnnualGivingData; error?: string }> {
+  const supabase = await createServerClient()
+
+  try {
+    // Fetch donor info
+    const { data: donor, error: donorError } = await supabase
+      .from('donors')
+      .select('*')
+      .eq('id', donorId)
+      .single()
+
+    if (donorError || !donor) {
+      console.error('Donor fetch error:', donorError)
+      return { success: false, error: 'Donor not found' }
+    }
+
+    // Calculate date range for the year
+    const startDate = `${year}-01-01`
+    const endDate = `${year}-12-31`
+
+    // Fetch all journal entries for this donor in the year
+    const { data: journalEntries, error: entriesError } = await supabase
+      .from('journal_entries')
+      .select('id, entry_date, description, reference_number, is_in_kind')
+      .eq('donor_id', donorId)
+      .gte('entry_date', startDate)
+      .lte('entry_date', endDate)
+      .eq('is_voided', false)
+      .order('entry_date')
+
+    if (entriesError) {
+      console.error('Journal entries error:', entriesError)
+      return { success: false, error: 'Failed to fetch giving history' }
+    }
+
+    // For each journal entry, get the income account ledger lines
+    const gifts: AnnualGivingGift[] = []
+
+    for (const entry of journalEntries || []) {
+      // Get ledger lines for this entry that are Income accounts
+      const { data: ledgerLines } = await supabase
+        .from('ledger_lines')
+        .select(`
+          credit,
+          debit,
+          funds (name),
+          chart_of_accounts (
+            account_number,
+            name,
+            account_type
+          )
+        `)
+        .eq('journal_entry_id', entry.id)
+
+      // Filter for Income accounts and calculate the gift amount
+      for (const line of ledgerLines || []) {
+        const account = line.chart_of_accounts as any
+        const fund = line.funds as any
+
+        // Only include Income accounts (4000s)
+        if (account?.account_type === 'Income' && line.credit > 0) {
+          gifts.push({
+            entry_date: entry.entry_date,
+            description: entry.description,
+            account_name: account.name,
+            account_number: account.account_number,
+            fund_name: fund?.name || 'General',
+            reference_number: entry.reference_number,
+            amount: line.credit,
+            is_in_kind: entry.is_in_kind || false,
+          })
+        }
+      }
+    }
+
+    // Separate cash and in-kind gifts
+    const cash_gifts = gifts.filter(g => !g.is_in_kind)
+    const in_kind_gifts = gifts.filter(g => g.is_in_kind)
+
+    // Calculate total cash amount (exclude in-kind)
+    const total_cash_amount = cash_gifts.reduce((sum, gift) => sum + gift.amount, 0)
+
+    return {
+      success: true,
+      data: {
+        donor_id: donor.id,
+        donor_name: donor.name,
+        donor_address: donor.address,
+        donor_email: donor.email,
+        year,
+        gifts,
+        cash_gifts,
+        in_kind_gifts,
+        total_cash_amount,
+      },
+    }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}

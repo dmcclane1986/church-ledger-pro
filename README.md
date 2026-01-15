@@ -17,7 +17,11 @@ A complete, production-ready accounting solution designed specifically for churc
 ### Transaction Recording
 ✅ **Record Giving** - Record donations with optional donor tracking  
 ✅ **Record Expenses** - Track all church expenses by category  
+✅ **In-Kind Donations** - Record non-cash donations (equipment, supplies, services)  
+✅ **Import Bank Statement** - Bulk import expenses from bank CSV files  
+✅ **Import Online Giving** - Batch import online donations with processing fees  
 ✅ **Fund Transfers** - Transfer between funds without affecting total cash  
+✅ **Account Transfers** - Move money between different bank accounts  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 
@@ -25,8 +29,10 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Dashboard** - Real-time stat cards and 6-month trend charts  
 ✅ **Balance Sheet** - View assets, liabilities, and net assets with fund balances  
 ✅ **Income Statement** - Monthly revenue and expenses with period selection  
+✅ **Quarterly Income Statement** - Q1-Q4 revenue and expense comparison  
 ✅ **Transaction History** - Searchable list with void capability  
-✅ **Donor Statements** - Annual contribution statements for tax purposes  
+✅ **Donor Statements (Online)** - View and print contribution statements  
+✅ **Annual Donor Statements (PDF)** - Professional year-end tax statements with IRS-compliant formatting  
 ✅ **Budget Variance** - Compare budgeted vs. actual with visual progress bars
 
 ### Budgeting & Analysis
@@ -72,12 +78,44 @@ Track all church expenses:
 - Enter amount and optional reference
 - Automatic double-entry: Debit Expense, Credit Cash
 
-### 3. Fund Transfer
+### 3. In-Kind Donation
+Record non-cash donations (equipment, tools, supplies):
+- Required: Select donor (IRS compliance)
+- Enter item description and donor-provided value
+- Choose category: Fixed Asset (1000s) or Donated Supply (5000s)
+- Automatic double-entry: Debit Asset/Expense, Credit 4050 - Non-Cash Contributions
+- Properly labeled on donor statements as "In-Kind" per IRS guidelines
+
+### 4. Import Bank Statement
+Bulk import expenses from bank CSV files:
+- Upload CSV from your bank
+- Map columns (Date, Description, Amount, Credit/Debit)
+- Review and categorize each expense
+- Assign to funds and expense accounts
+- Automatic duplicate detection
+- Process transactions individually or in batches
+
+### 5. Import Online Giving
+Batch import online donations from payment processors:
+- Upload CSV from payment processor (PayPal, Kindrid, etc.)
+- Handle processing fees automatically
+- Split net deposit vs. gross donations
+- Link each donation to specific donor
+- Support multiple funds per batch
+
+### 6. Fund Transfer
 Move money between funds:
 - Select source and destination funds
 - Enter amount
 - Same account (checking), different funds
 - Total bank balance unchanged
+
+### 7. Account Transfer
+Move money between bank accounts:
+- Select source and destination accounts
+- Enter amount
+- Same fund, different accounts
+- Updates account balances
 
 ## 👥 User Roles
 
@@ -129,10 +167,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 Execute these migrations in order in your Supabase SQL Editor:
 
 1. **Base Schema**: `SETUP.sql` (creates tables and initial structure)
-2. **Voiding Support**: `migrations/add_voided_status.sql`
+2. **Voiding Support**: `migrations/add_voided_status.sql` or `migrations/add_donor_id_to_journal_entries.sql`
 3. **Donor Tracking**: `migrations/add_donors_table.sql`
-4. **Budgeting**: `migrations/add_budgets_table.sql`
-5. **User Roles**: `migrations/add_user_roles.sql`
+4. **In-Kind Flag**: `migrations/add_in_kind_flag.sql`
+5. **Budgeting**: `migrations/add_budgets_table.sql`
+6. **User Roles**: `migrations/add_user_roles.sql`
 
 ### 4. Assign First Admin User
 
@@ -164,19 +203,25 @@ Open [http://localhost:3000](http://localhost:3000)
 church-ledger-pro/
 ├── app/
 │   ├── actions/
-│   │   ├── transactions.ts        # Giving, Expense, Transfers
-│   │   ├── reports.ts              # Financial reports
+│   │   ├── transactions.ts        # Giving, Expense, Transfers, In-Kind
+│   │   ├── reports.ts              # Financial reports, Annual statements
 │   │   ├── donors.ts               # Donor management
 │   │   └── budgets.ts              # Budget tracking
 │   ├── reports/
 │   │   ├── balance-sheet/
 │   │   ├── income-statement/
+│   │   ├── quarterly-income/       # Q1-Q4 comparison
 │   │   ├── transaction-history/
-│   │   ├── donor-statements/
+│   │   ├── donor-statements/       # Online statements
+│   │   ├── annual-statements/      # PDF generation
 │   │   └── budget-variance/
 │   ├── transactions/
 │   │   ├── expense/                # Record Expense page
+│   │   ├── in-kind/                # In-Kind Donation page
+│   │   ├── import/                 # Online Giving import
+│   │   ├── bank-statement/         # Bank Statement import
 │   │   ├── fund-transfer/          # Fund Transfer page
+│   │   ├── account-transfer/       # Account Transfer page
 │   │   └── page.tsx                # Record Giving page
 │   ├── unauthorized/               # Access denied page
 │   ├── page.tsx                    # Dashboard home
@@ -184,8 +229,12 @@ church-ledger-pro/
 ├── components/
 │   ├── RecordGivingForm.tsx
 │   ├── RecordExpenseForm.tsx
+│   ├── InKindDonationForm.tsx
+│   ├── BankStatementImporter.tsx
+│   ├── BatchOnlineDonationForm.tsx
 │   ├── FundTransferForm.tsx
 │   ├── DonorStatementForm.tsx
+│   ├── AnnualStatementGenerator.tsx
 │   ├── BudgetVarianceDisplay.tsx
 │   ├── DashboardChart.tsx
 │   └── TransactionHistory.tsx
@@ -316,31 +365,40 @@ Create budgets using the `upsertBudget()` server action or directly in the budge
 - ✅ Complete double-entry accounting system
 - ✅ Dashboard with charts and metrics
 - ✅ Record Giving with donor tracking
-- ✅ Record Expenses
-- ✅ Fund Transfers
+- ✅ Record Expenses with payment types (cash/credit)
+- ✅ In-Kind Donation tracking (non-cash contributions)
+- ✅ Import Bank Statement (CSV bulk expense import)
+- ✅ Import Online Giving (batch donations with fees)
+- ✅ Fund Transfers (between funds)
+- ✅ Account Transfers (between bank accounts)
 - ✅ Balance Sheet with fund balances
-- ✅ Income Statement with period selection
+- ✅ Income Statement (monthly and quarterly)
 - ✅ Transaction History with search and void
 - ✅ Donor management and tracking
-- ✅ Donor contribution statements (tax receipts)
+- ✅ Donor contribution statements (online viewing)
+- ✅ Annual Donor Statements (PDF generation with IRS compliance)
 - ✅ Budget tracking and management
 - ✅ Budget variance reports with progress bars
 - ✅ Role-based access control (Admin, Bookkeeper, Viewer)
 - ✅ Donor privacy protection for Viewer role
 - ✅ Route protection with middleware
 - ✅ Comprehensive audit trail
+- ✅ In-kind donations properly labeled on statements
+- ✅ Duplicate transaction detection
+- ✅ Weekly deposit form with batch entry
 
 ## 🚧 Future Enhancements
 
-- [ ] PDF export for all reports
 - [ ] Recurring transactions
 - [ ] Multi-year comparisons
 - [ ] Cash flow statement
 - [ ] Receipt generation
 - [ ] Email donor statements automatically
-- [ ] Batch transaction import (CSV)
+- [ ] Check printing
 - [ ] Mobile app
 - [ ] Advanced dashboard customization
+- [ ] Church settings management page
+- [ ] Payroll module
 
 ## 🏆 What Makes This Special
 

@@ -13,33 +13,42 @@ Welcome! This project includes comprehensive documentation. Use this index to fi
 3. **[README.md](./README.md)** - Main project documentation
    - *Feature overview, usage instructions, project structure*
 
+## 📖 User Manuals (For Church Staff)
+
+4. **[manuals/](./manuals/)** - Comprehensive user guides
+   - 17 step-by-step manuals for all features
+   - Training paths by role (Admin, Bookkeeper, Viewer)
+   - Real-world examples and troubleshooting
+   - *Start with [manuals/00-MANUALS-INDEX.md](./manuals/00-MANUALS-INDEX.md)*
+   - Quick reference: [manuals/QUICK-REFERENCE.md](./manuals/QUICK-REFERENCE.md)
+
 ## 📊 Database & Accounting
 
-4. **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** - Complete database documentation
+5. **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** - Complete database documentation
    - Table structures, relationships, RLS policies
    - Example queries and sample data
    - *Read this to understand the data model*
 
-5. **[DOUBLE_ENTRY_GUIDE.md](./DOUBLE_ENTRY_GUIDE.md)** - Accounting guide
+6. **[DOUBLE_ENTRY_GUIDE.md](./DOUBLE_ENTRY_GUIDE.md)** - Accounting guide
    - Double-entry bookkeeping explained
    - Common church transaction patterns
    - Real-world examples
    - *Read this if you're new to accounting*
 
-6. **[SETUP.sql](./SETUP.sql)** - Database seeding script
+7. **[SETUP.sql](./SETUP.sql)** - Database seeding script
    - Run this in Supabase SQL Editor
    - Creates funds and chart of accounts
    - *Required before using the app*
 
 ## 💻 Development
 
-7. **[PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)** - High-level project overview
+8. **[PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)** - High-level project overview
    - What was built and why
    - Architecture and implementation details
    - File structure and data flow
    - *Read this to understand the codebase*
 
-8. **[.cursorrules](./.cursorrules)** - Development guidelines
+9. **[.cursorrules](./.cursorrules)** - Development guidelines
    - Coding conventions
    - Transaction recording rules
    - How to extend the app
@@ -75,8 +84,9 @@ Welcome! This project includes comprehensive documentation. Use this index to fi
 
 ### For Church Treasurers (Non-Technical)
 1. Start with **QUICKSTART.md** to get the app running
-2. Read **DOUBLE_ENTRY_GUIDE.md** to understand the accounting
-3. Reference **DATABASE_SCHEMA.md** for sample data and queries
+2. Read **manuals/00-MANUALS-INDEX.md** for user guides
+3. Keep **manuals/QUICK-REFERENCE.md** handy for daily use
+4. Read **DOUBLE_ENTRY_GUIDE.md** to understand the accounting
 
 ### For Developers
 1. Read **PROJECT_SUMMARY.md** for architecture overview
@@ -99,6 +109,8 @@ Welcome! This project includes comprehensive documentation. Use this index to fi
 | I want to... | Read this |
 |--------------|-----------|
 | Get the app running in 5 minutes | QUICKSTART.md |
+| Learn how to use features | manuals/00-MANUALS-INDEX.md |
+| Quick reference for daily tasks | manuals/QUICK-REFERENCE.md |
 | Install from scratch with details | INSTALLATION.md |
 | Understand the database schema | DATABASE_SCHEMA.md |
 | Learn double-entry bookkeeping | DOUBLE_ENTRY_GUIDE.md |
@@ -106,7 +118,7 @@ Welcome! This project includes comprehensive documentation. Use this index to fi
 | Understand what was built | PROJECT_SUMMARY.md |
 | See example SQL queries | DATABASE_SCHEMA.md + SETUP.sql |
 | Deploy to production | README.md + INSTALLATION.md |
-| Troubleshoot issues | INSTALLATION.md |
+| Troubleshoot feature usage | manuals/ (specific feature manual) |
 | Customize the chart of accounts | SETUP.sql + DATABASE_SCHEMA.md |
 
 ## 📝 File Sizes (Approximate)
@@ -114,6 +126,7 @@ Welcome! This project includes comprehensive documentation. Use this index to fi
 - QUICKSTART.md - 2 pages - *Quick read*
 - INSTALLATION.md - 5 pages - *Detailed guide*
 - README.md - 6 pages - *Main docs*
+- manuals/ - 150+ pages - *17 comprehensive user guides*
 - DATABASE_SCHEMA.md - 8 pages - *Comprehensive*
 - DOUBLE_ENTRY_GUIDE.md - 7 pages - *Educational*
 - PROJECT_SUMMARY.md - 6 pages - *Technical*
@@ -148,12 +161,12 @@ Make sure you understand these before using the app:
 
 ## 📊 Stats
 
-- **Total Documentation**: 8 comprehensive files
-- **Code Files**: ~15 TypeScript/JavaScript files
-- **Database Tables**: 4 main tables + 1 view
-- **Lines of Documentation**: ~2,000 lines
+- **Total Documentation**: 8 technical docs + 17 user manuals
+- **Code Files**: ~50 TypeScript/JavaScript files
+- **Database Tables**: 10+ tables + views
+- **Lines of Documentation**: ~100,000+ lines
 - **Setup Time**: 5-15 minutes
-- **Learning Curve**: Beginner-friendly
+- **Learning Curve**: Beginner-friendly with comprehensive guides
 
 ## ✅ Complete Checklist
 

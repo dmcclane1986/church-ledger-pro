@@ -66,6 +66,20 @@ export default async function RootLayout({
                           Expenses
                         </a>
                         <a
+                          href="/transactions/in-kind"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          role="menuitem"
+                        >
+                          In-Kind Donation
+                        </a>
+                        <a
+                          href="/transactions/bank-statement"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          role="menuitem"
+                        >
+                          Import Bank Statement
+                        </a>
+                        <a
                           href="/transactions/import"
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           role="menuitem"

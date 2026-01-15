@@ -21,19 +21,31 @@ A **production-ready**, full-featured accounting system built with **Next.js 14*
 
 ### ✅ Transaction Recording
 - [x] **Record Giving** - Donation tracking with optional donor linking
-- [x] **Record Expense** - Expense tracking by vendor and category
+- [x] **Record Expense** - Expense tracking by vendor and category (cash/credit payment types)
+- [x] **In-Kind Donation** - Non-cash donations (equipment, supplies, services)
+- [x] **Import Bank Statement** - Bulk CSV import for expenses with column mapping
+- [x] **Import Online Giving** - Batch donation import with processing fee handling
 - [x] **Fund Transfer** - Move money between funds
+- [x] **Account Transfer** - Move money between bank accounts
+- [x] **Weekly Deposit Form** - Batch entry for weekly giving
 - [x] Form validation (client and server-side)
 - [x] Success/error feedback
 - [x] Reference number tracking (check #, invoice #, etc.)
 - [x] Automatic double-entry creation
+- [x] Duplicate transaction detection
 
 ### ✅ Donor Management
 - [x] Donors table with name, email, address, envelope number
 - [x] Link transactions to donors
 - [x] Searchable donor dropdown
 - [x] Quick-add donor during transaction entry
-- [x] **Donor contribution statements** (annual tax receipts)
+- [x] **Donor contribution statements (Online)** - View and print statements
+- [x] **Annual Donor Statements (PDF)** - Professional year-end tax statements
+- [x] PDF generation with church letterhead
+- [x] IRS-compliant formatting and disclaimers
+- [x] Windowed envelope formatting
+- [x] Separate in-kind section (no dollar values per IRS)
+- [x] Batch PDF generation for all donors
 - [x] Printable statements with tax disclaimers
 - [x] **Privacy protection** - Viewer role cannot see donor names
 
@@ -64,15 +76,29 @@ A **production-ready**, full-featured accounting system built with **Next.js 14*
   - Income accounts (4000s)
   - Expense accounts (5000s)
   - Net increase/decrease
+- [x] **Quarterly Income Statement** - Q1-Q4 comparison
+  - Four quarters displayed side-by-side
+  - Income and expense breakdown
+  - Net income per quarter
 - [x] **Transaction History** - Searchable journal entry list
   - Search by description or reference
   - View double-entry details modal
   - Void transaction capability
   - Donor name column (role-based visibility)
-- [x] **Donor Statements** - Annual contribution reports
+- [x] **Donor Statements (Online)** - View and print contribution reports
   - Select donor and year
+  - Shows cash and in-kind contributions
+  - In-kind items labeled with blue badges
   - Printable format
   - Tax disclaimer included
+- [x] **Annual Donor Statements (PDF)** - Professional year-end tax statements
+  - Professional church letterhead
+  - Donor info formatted for windowed envelopes
+  - Cash contributions table with dates, funds, amounts
+  - Separate in-kind section (descriptions only)
+  - IRS-required legal disclaimers
+  - Batch generation for all donors
+  - PDF download with proper naming
 - [x] **Budget Variance** - Budget performance tracking
   - Visual progress bars
   - Variance amounts and percentages
@@ -150,8 +176,13 @@ church-ledger-pro/
 ├── components/
 │   ├── RecordGivingForm.tsx        ✅ Giving transaction form
 │   ├── RecordExpenseForm.tsx       ✅ Expense transaction form
+│   ├── InKindDonationForm.tsx      ✅ In-kind donation form
+│   ├── BankStatementImporter.tsx   ✅ CSV expense import with mapping
+│   ├── BatchOnlineDonationForm.tsx ✅ Online giving batch import
+│   ├── WeeklyDepositForm.tsx       ✅ Weekly deposit tally form
 │   ├── FundTransferForm.tsx        ✅ Fund transfer form
-│   ├── DonorStatementForm.tsx      ✅ Donor statement generator
+│   ├── DonorStatementForm.tsx      ✅ Online donor statement viewer
+│   ├── AnnualStatementGenerator.tsx ✅ PDF statement generator
 │   ├── BudgetVarianceDisplay.tsx   ✅ Budget progress bars
 │   ├── BudgetYearSelector.tsx      ✅ Fiscal year dropdown
 │   ├── DashboardChart.tsx          ✅ 6-month trend chart
@@ -171,7 +202,9 @@ church-ledger-pro/
 │
 ├── migrations/
 │   ├── add_voided_status.sql       ✅ Transaction voiding
-│   ├── add_donors_table.sql        ✅ Donor tracking
+│   ├── add_donor_id_to_journal_entries.sql ✅ Donor tracking
+│   ├── add_donors_table.sql        ✅ Donors table
+│   ├── add_in_kind_flag.sql        ✅ In-kind donation tracking
 │   ├── add_budgets_table.sql       ✅ Budget management
 │   ├── add_user_roles.sql          ✅ RBAC system
 │   └── README.md                   ✅ Migration instructions
@@ -200,7 +233,7 @@ church-ledger-pro/
 |-------|---------|------------|
 | `funds` | Track restricted/unrestricted funds | name, is_restricted |
 | `chart_of_accounts` | Account structure | account_number, account_type, parent_id |
-| `journal_entries` | Transaction headers | entry_date, description, donor_id, is_voided |
+| `journal_entries` | Transaction headers | entry_date, description, donor_id, is_voided, is_in_kind |
 | `ledger_lines` | Double-entry details | journal_entry_id, account_id, fund_id, debit, credit |
 | `donors` | Donor information | name, email, address, envelope_number |
 | `budgets` | Budget tracking | account_id, fiscal_year, budgeted_amount |
@@ -556,16 +589,16 @@ Variance:         +$1,500 over
 
 ## 📊 System Statistics
 
-- **Total Files**: 50+ source files
-- **Lines of Code**: ~8,000 LOC
-- **Database Tables**: 7 main tables
-- **Server Actions**: 15+ functions
-- **Client Components**: 12 components
-- **Report Types**: 6 financial reports
-- **Transaction Types**: 3 (Giving, Expense, Transfer)
+- **Total Files**: 60+ source files
+- **Lines of Code**: ~10,000+ LOC
+- **Database Tables**: 7 main tables + 1 view
+- **Server Actions**: 20+ functions
+- **Client Components**: 15+ components
+- **Report Types**: 8 financial reports
+- **Transaction Types**: 7 (Giving, Expense, In-Kind, Bank Import, Online Import, Fund Transfer, Account Transfer)
 - **User Roles**: 3 (Admin, Bookkeeper, Viewer)
-- **Migrations**: 5 SQL migrations
-- **Documentation Pages**: 10 MD files
+- **Migrations**: 6+ SQL migrations
+- **Documentation Pages**: 13+ MD files
 
 ---
 
@@ -575,14 +608,20 @@ Variance:         +$1,500 over
 
 - Professional double-entry bookkeeping
 - Complete fund accounting
+- 7 transaction types (giving, expense, in-kind, imports, transfers)
+- CSV import for bank statements and online giving
 - Donor management with privacy controls
+- In-kind donation tracking (IRS-compliant)
+- Annual PDF donor statements with professional formatting
 - Budget tracking and variance analysis
 - Role-based security with 3 user levels
-- Comprehensive financial reporting
+- 8 comprehensive financial reports
 - Modern, responsive UI
 - Full audit trail
-- Tax-ready donor statements
+- Tax-ready donor statements (online and PDF)
 - Real-time dashboard analytics
+- Duplicate transaction detection
+- Windowed envelope formatting
 
 **Status: COMPLETE AND PRODUCTION READY** ✅
 

@@ -923,3 +923,106 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
+
+interface InKindDonationInput {
+  date: string
+  donorId: string
+  itemDescription: string
+  estimatedValue: number
+  category: 'asset' | 'expense' // Determines if it's a Fixed Asset or Donated Supply/Expense
+  assetOrExpenseAccountId: string
+  inKindIncomeAccountId: string // 4050 - Non-Cash Contributions
+  fundId: string
+  referenceNumber?: string
+}
+
+export async function recordInKindDonation(input: InKindDonationInput) {
+  const supabase = await createServerClient()
+
+  try {
+    // Validate amount
+    if (input.estimatedValue <= 0) {
+      return { success: false, error: 'Estimated value must be greater than zero' }
+    }
+
+    // Validate required fields
+    if (!input.donorId) {
+      return { success: false, error: 'Donor is required for in-kind donations' }
+    }
+
+    if (!input.itemDescription.trim()) {
+      return { success: false, error: 'Item description is required' }
+    }
+
+    // Step 1: Create the journal entry header with is_in_kind flag
+    const { data: journalEntry, error: journalError } = await supabase
+      .from('journal_entries')
+      .insert({
+        entry_date: input.date,
+        description: `In-Kind Donation: ${input.itemDescription}`,
+        reference_number: input.referenceNumber || null,
+        donor_id: input.donorId,
+        is_in_kind: true, // Flag for donor statements
+      })
+      .select()
+      .single()
+
+    if (journalError) {
+      console.error('Journal entry error:', journalError)
+      return { success: false, error: 'Failed to create journal entry' }
+    }
+
+    // Step 2: Create the two ledger lines (debit and credit)
+    // NO checking account involved - this is a non-cash transaction
+    const ledgerLines = [
+      {
+        journal_entry_id: journalEntry.id,
+        account_id: input.assetOrExpenseAccountId, // Debit: Increase Asset or Expense
+        fund_id: input.fundId,
+        debit: input.estimatedValue,
+        credit: 0,
+        memo: `In-kind donation: ${input.itemDescription}`,
+      },
+      {
+        journal_entry_id: journalEntry.id,
+        account_id: input.inKindIncomeAccountId, // Credit: 4050 - Non-Cash Contributions
+        fund_id: input.fundId,
+        debit: 0,
+        credit: input.estimatedValue,
+        memo: `Non-cash contribution from donor`,
+      },
+    ]
+
+    const { error: ledgerError } = await supabase
+      .from('ledger_lines')
+      .insert(ledgerLines)
+
+    if (ledgerError) {
+      console.error('Ledger lines error:', ledgerError)
+      // Rollback: Delete the journal entry if ledger lines failed
+      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
+      return { success: false, error: 'Failed to create ledger entries' }
+    }
+
+    // Verify the entry is balanced
+    const totalDebits = ledgerLines.reduce((sum, line) => sum + line.debit, 0)
+    const totalCredits = ledgerLines.reduce((sum, line) => sum + line.credit, 0)
+    const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
+
+    if (!isBalanced) {
+      console.error('Unbalanced entry. Debits:', totalDebits, 'Credits:', totalCredits)
+      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
+      return {
+        success: false,
+        error: `Transaction is not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`,
+      }
+    }
+
+    revalidatePath('/transactions')
+    revalidatePath('/transactions/in-kind')
+    return { success: true, journalEntryId: journalEntry.id }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}

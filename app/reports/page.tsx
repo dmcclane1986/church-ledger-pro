@@ -76,6 +76,36 @@ export default function ReportsPage() {
             View History →
           </a>
         </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            📄 Annual Donor Statements (PDF)
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Generate year-end tax statements for donors
+          </p>
+          <a 
+            href="/reports/annual-statements" 
+            className="text-blue-600 hover:text-blue-800 font-medium"
+          >
+            Generate PDFs →
+          </a>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            📧 Donor Statements (Online)
+          </h2>
+          <p className="text-gray-600 mb-4">
+            View and print individual donor statements
+          </p>
+          <a 
+            href="/reports/donor-statements" 
+            className="text-indigo-600 hover:text-indigo-800 font-medium"
+          >
+            View Statements →
+          </a>
+        </div>
       </div>
 
       <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">

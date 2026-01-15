@@ -74,8 +74,17 @@ export default async function TransactionsPage() {
           <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
             → Reports
           </Link>
+          <Link href="/transactions/expense" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
+            → Record Expense
+          </Link>
+          <Link href="/transactions/in-kind" className="text-purple-600 hover:text-purple-800 font-medium text-sm">
+            🎁 In-Kind Donation
+          </Link>
+          <Link href="/transactions/bank-statement" className="text-orange-600 hover:text-orange-800 font-medium text-sm">
+            → Import Bank Statement (Expenses)
+          </Link>
           <Link href="/transactions/import" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Import Bank Statement
+            → Import Online Giving
           </Link>
           <Link href="/donors/new" className="text-green-600 hover:text-green-800 font-medium text-sm">
             + Add New Donor

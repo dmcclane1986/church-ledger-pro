@@ -110,28 +110,51 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          donor_id: string | null
           entry_date: string
           id: string
+          is_in_kind: boolean
+          is_voided: boolean
           reference_number: string | null
           updated_at: string
+          voided_at: string | null
+          voided_reason: string | null
         }
         Insert: {
           created_at?: string
           description: string
+          donor_id?: string | null
           entry_date: string
           id?: string
+          is_in_kind?: boolean
+          is_voided?: boolean
           reference_number?: string | null
           updated_at?: string
+          voided_at?: string | null
+          voided_reason?: string | null
         }
         Update: {
           created_at?: string
           description?: string
+          donor_id?: string | null
           entry_date?: string
           id?: string
+          is_in_kind?: boolean
+          is_voided?: boolean
           reference_number?: string | null
           updated_at?: string
+          voided_at?: string | null
+          voided_reason?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_donor_id_fkey"
+            columns: ["donor_id"]
+            isOneToOne: false
+            referencedRelation: "donors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ledger_lines: {
         Row: {
