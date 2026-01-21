@@ -131,10 +131,16 @@ export default function FundSummaryReport() {
                         Beginning Balance
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                        Income
+                        Income (Planned)
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                        Expenses
+                        Income (Actual)
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                        Expenses (Planned)
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                        Expenses (Actual)
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         Ending Balance
@@ -150,8 +156,14 @@ export default function FundSummaryReport() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                           {formatCurrency(fund.beginning_balance)}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                          {fund.planned_income ? formatCurrency(fund.planned_income) : '-'}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-700 font-medium">
                           {formatCurrency(fund.total_income)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                          {fund.planned_expenses ? formatCurrency(fund.planned_expenses) : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-700 font-medium">
                           {formatCurrency(fund.total_expenses)}
@@ -168,8 +180,14 @@ export default function FundSummaryReport() {
                       <td className="px-6 py-4 text-sm text-right text-gray-900">
                         {formatCurrency(totalUnrestrictedBeginning)}
                       </td>
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        {formatCurrency(unrestrictedFunds.reduce((sum, f) => sum + (f.planned_income || 0), 0))}
+                      </td>
                       <td className="px-6 py-4 text-sm text-right text-green-700">
                         {formatCurrency(totalUnrestrictedIncome)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        {formatCurrency(unrestrictedFunds.reduce((sum, f) => sum + (f.planned_expenses || 0), 0))}
                       </td>
                       <td className="px-6 py-4 text-sm text-right text-red-700">
                         {formatCurrency(totalUnrestrictedExpenses)}
@@ -202,10 +220,16 @@ export default function FundSummaryReport() {
                         Beginning Balance
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                        Income
+                        Income (Planned)
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                        Expenses
+                        Income (Actual)
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                        Expenses (Planned)
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                        Expenses (Actual)
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         Ending Balance
@@ -221,8 +245,14 @@ export default function FundSummaryReport() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                           {formatCurrency(fund.beginning_balance)}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                          {fund.planned_income ? formatCurrency(fund.planned_income) : '-'}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-700 font-medium">
                           {formatCurrency(fund.total_income)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                          {fund.planned_expenses ? formatCurrency(fund.planned_expenses) : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-700 font-medium">
                           {formatCurrency(fund.total_expenses)}
@@ -239,8 +269,14 @@ export default function FundSummaryReport() {
                       <td className="px-6 py-4 text-sm text-right text-gray-900">
                         {formatCurrency(totalRestrictedBeginning)}
                       </td>
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        {formatCurrency(restrictedFunds.reduce((sum, f) => sum + (f.planned_income || 0), 0))}
+                      </td>
                       <td className="px-6 py-4 text-sm text-right text-green-700">
                         {formatCurrency(totalRestrictedIncome)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-gray-700">
+                        {formatCurrency(restrictedFunds.reduce((sum, f) => sum + (f.planned_expenses || 0), 0))}
                       </td>
                       <td className="px-6 py-4 text-sm text-right text-red-700">
                         {formatCurrency(totalRestrictedExpenses)}

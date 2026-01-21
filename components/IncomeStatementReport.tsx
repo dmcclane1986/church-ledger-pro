@@ -123,7 +123,8 @@ export default function IncomeStatementReport() {
                 <thead>
                   <tr className="text-left text-sm text-gray-600 border-b border-gray-200">
                     <th className="pb-2 font-medium">Account</th>
-                    <th className="pb-2 font-medium text-right">Amount</th>
+                    <th className="pb-2 font-medium text-right">Planned</th>
+                    <th className="pb-2 font-medium text-right">Actual</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -135,6 +136,9 @@ export default function IncomeStatementReport() {
                         </span>
                         {line.account_name}
                       </td>
+                      <td className="py-3 text-right text-gray-500">
+                        {line.budgeted_amount ? formatCurrency(line.budgeted_amount) : '-'}
+                      </td>
                       <td className="py-3 text-right text-gray-900 font-medium">
                         {formatCurrency(line.total)}
                       </td>
@@ -142,6 +146,9 @@ export default function IncomeStatementReport() {
                   ))}
                   <tr className="bg-blue-50 font-semibold">
                     <td className="py-3 text-gray-900">Total Income</td>
+                    <td className="py-3 text-right text-blue-700">
+                      {formatCurrency(data.income.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0))}
+                    </td>
                     <td className="py-3 text-right text-blue-900">
                       {formatCurrency(data.totalIncome)}
                     </td>
@@ -161,7 +168,8 @@ export default function IncomeStatementReport() {
                 <thead>
                   <tr className="text-left text-sm text-gray-600 border-b border-gray-200">
                     <th className="pb-2 font-medium">Account</th>
-                    <th className="pb-2 font-medium text-right">Amount</th>
+                    <th className="pb-2 font-medium text-right">Planned</th>
+                    <th className="pb-2 font-medium text-right">Actual</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -173,6 +181,9 @@ export default function IncomeStatementReport() {
                         </span>
                         {line.account_name}
                       </td>
+                      <td className="py-3 text-right text-gray-500">
+                        {line.budgeted_amount ? formatCurrency(line.budgeted_amount) : '-'}
+                      </td>
                       <td className="py-3 text-right text-gray-900 font-medium">
                         {formatCurrency(line.total)}
                       </td>
@@ -180,6 +191,9 @@ export default function IncomeStatementReport() {
                   ))}
                   <tr className="bg-red-50 font-semibold">
                     <td className="py-3 text-gray-900">Total Expenses</td>
+                    <td className="py-3 text-right text-red-700">
+                      {formatCurrency(data.expenses.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0))}
+                    </td>
                     <td className="py-3 text-right text-red-900">
                       {formatCurrency(data.totalExpenses)}
                     </td>

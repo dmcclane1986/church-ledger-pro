@@ -47,11 +47,56 @@ export default async function Home() {
   // Get Month-to-Date Income and Expenses
   const mtdIncome = incomeStatementResult.data?.totalIncome || 0
   const mtdExpenses = incomeStatementResult.data?.totalExpenses || 0
+  
+  // Calculate planned MTD amounts from income statement data
+  const mtdPlannedIncome = incomeStatementResult.data?.income.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0) || 0
+  const mtdPlannedExpenses = incomeStatementResult.data?.expenses.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0) || 0
 
   // Get Year-to-Date Income and Expenses
   const ytdIncome = ytdDataResult.data?.totalIncome || 0
   const ytdExpenses = ytdDataResult.data?.totalExpenses || 0
   const ytdNetIncrease = ytdDataResult.data?.netIncrease || 0
+  
+  // Calculate planned YTD amounts (prorate annual budget by months elapsed)
+  const { fetchBudgets } = await import('@/app/actions/budgets')
+  const budgetsResult = await fetchBudgets(currentYear)
+  const budgets = budgetsResult.data || []
+  
+  // Calculate months elapsed (Jan = 1, so currentMonth is the number of months)
+  const monthsElapsed = currentMonth
+  const ytdBudgetMultiplier = monthsElapsed / 12
+  
+  // Sum up planned income and expenses from budgets
+  const { createServerClient } = await import('@/lib/supabase/server')
+  const supabase = await createServerClient()
+  
+  // Get account types for budgets
+  const budgetAccountIds = budgets.map(b => b.account_id)
+  let ytdPlannedIncome = 0
+  let ytdPlannedExpenses = 0
+  
+  if (budgetAccountIds.length > 0) {
+    const { data: accounts } = await supabase
+      .from('chart_of_accounts')
+      .select('id, account_type')
+      .in('id', budgetAccountIds)
+    
+    if (accounts) {
+      const accountTypeMap = new Map<string, string>()
+      for (const account of accounts as Array<{ id: string; account_type: string }>) {
+        accountTypeMap.set(account.id, account.account_type)
+      }
+      for (const budget of budgets) {
+        const accountType = accountTypeMap.get(budget.account_id)
+        const proratedAmount = budget.budgeted_amount * ytdBudgetMultiplier
+        if (accountType === 'Income') {
+          ytdPlannedIncome += proratedAmount
+        } else if (accountType === 'Expense') {
+          ytdPlannedExpenses += proratedAmount
+        }
+      }
+    }
+  }
 
   // Get YTD Fund Balances
   const ytdFundBalances = ytdFundBalancesResult.data || []
@@ -165,6 +210,9 @@ export default async function Home() {
               <p className="text-3xl font-bold text-green-600 mt-2">
                 {formatCurrency(mtdIncome)}
               </p>
+              <p className="text-sm text-gray-600 mt-1 font-medium">
+                Planned: {formatCurrency(mtdPlannedIncome)}
+              </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
               <span className="text-2xl">📈</span>
@@ -180,6 +228,9 @@ export default async function Home() {
               <p className="text-sm font-medium text-gray-600">Total Expenses (MTD)</p>
               <p className="text-3xl font-bold text-red-600 mt-2">
                 {formatCurrency(mtdExpenses)}
+              </p>
+              <p className="text-sm text-gray-600 mt-1 font-medium">
+                Planned: {formatCurrency(mtdPlannedExpenses)}
               </p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -202,6 +253,9 @@ export default async function Home() {
                 <p className="text-3xl font-bold text-green-700 mt-2">
                   {formatCurrency(ytdIncome)}
                 </p>
+                <p className="text-sm text-green-700 mt-1 font-medium">
+                  Planned: {formatCurrency(ytdPlannedIncome)}
+                </p>
               </div>
               <div className="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center">
                 <span className="text-2xl">💵</span>
@@ -217,6 +271,9 @@ export default async function Home() {
                 <p className="text-sm font-medium text-red-800">YTD Expenses</p>
                 <p className="text-3xl font-bold text-red-700 mt-2">
                   {formatCurrency(ytdExpenses)}
+                </p>
+                <p className="text-sm text-red-700 mt-1 font-medium">
+                  Planned: {formatCurrency(ytdPlannedExpenses)}
                 </p>
               </div>
               <div className="w-12 h-12 bg-red-200 rounded-full flex items-center justify-center">

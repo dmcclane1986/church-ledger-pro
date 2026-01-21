@@ -129,7 +129,8 @@ export default function QuarterlyIncomeStatementReport() {
                         <tr className="text-left text-sm text-gray-600">
                           <th className="py-2 w-24">Account #</th>
                           <th className="py-2">Account Name</th>
-                          <th className="py-2 text-right">Amount</th>
+                          <th className="py-2 text-right">Planned</th>
+                          <th className="py-2 text-right">Actual</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm">
@@ -137,6 +138,9 @@ export default function QuarterlyIncomeStatementReport() {
                           <tr key={line.account_id} className="border-t border-gray-100">
                             <td className="py-2 text-gray-700">{line.account_number}</td>
                             <td className="py-2 text-gray-900">{line.account_name}</td>
+                            <td className="py-2 text-right text-gray-500">
+                              {line.budgeted_amount ? formatCurrency(line.budgeted_amount) : '-'}
+                            </td>
                             <td className="py-2 text-right font-medium text-gray-900">
                               {formatCurrency(line.total)}
                             </td>
@@ -146,6 +150,9 @@ export default function QuarterlyIncomeStatementReport() {
                       <tfoot>
                         <tr className="border-t-2 border-gray-300 font-semibold">
                           <td className="py-3" colSpan={2}>Total Income</td>
+                          <td className="py-3 text-right text-green-700">
+                            {formatCurrency(quarterData.income.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0))}
+                          </td>
                           <td className="py-3 text-right text-green-700">
                             {formatCurrency(quarterData.totalIncome)}
                           </td>
@@ -168,7 +175,8 @@ export default function QuarterlyIncomeStatementReport() {
                         <tr className="text-left text-sm text-gray-600">
                           <th className="py-2 w-24">Account #</th>
                           <th className="py-2">Account Name</th>
-                          <th className="py-2 text-right">Amount</th>
+                          <th className="py-2 text-right">Planned</th>
+                          <th className="py-2 text-right">Actual</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm">
@@ -176,6 +184,9 @@ export default function QuarterlyIncomeStatementReport() {
                           <tr key={line.account_id} className="border-t border-gray-100">
                             <td className="py-2 text-gray-700">{line.account_number}</td>
                             <td className="py-2 text-gray-900">{line.account_name}</td>
+                            <td className="py-2 text-right text-gray-500">
+                              {line.budgeted_amount ? formatCurrency(line.budgeted_amount) : '-'}
+                            </td>
                             <td className="py-2 text-right font-medium text-gray-900">
                               {formatCurrency(line.total)}
                             </td>
@@ -185,6 +196,9 @@ export default function QuarterlyIncomeStatementReport() {
                       <tfoot>
                         <tr className="border-t-2 border-gray-300 font-semibold">
                           <td className="py-3" colSpan={2}>Total Expenses</td>
+                          <td className="py-3 text-right text-red-700">
+                            {formatCurrency(quarterData.expenses.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0))}
+                          </td>
                           <td className="py-3 text-right text-red-700">
                             {formatCurrency(quarterData.totalExpenses)}
                           </td>

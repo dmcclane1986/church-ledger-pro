@@ -7,6 +7,7 @@ export interface IncomeStatementLine {
   account_name: string
   account_number: number
   total: number
+  budgeted_amount?: number
 }
 
 export interface IncomeStatementData {
@@ -566,13 +567,41 @@ export async function fetchIncomeStatement(
     incomeAccounts.sort((a, b) => a.account_number - b.account_number)
     expenseAccounts.sort((a, b) => a.account_number - b.account_number)
 
+    // Fetch budgets for the fiscal year (use the year of the selected month)
+    const fiscalYear = year
+    const { data: budgets } = await supabase
+      .from('budgets')
+      .select('account_id, budgeted_amount')
+      .eq('fiscal_year', fiscalYear)
+
+    // Create a map of account_id to budgeted_amount
+    const budgetMap = new Map<string, number>()
+    if (budgets) {
+      for (const budget of budgets) {
+        budgetMap.set(budget.account_id, budget.budgeted_amount)
+      }
+    }
+
+    // Add budgeted amounts to income accounts (prorated by month)
+    const monthlyBudgetMultiplier = 1 / 12 // For monthly reports, show 1/12 of annual budget
+    const incomeAccountsWithBudget = incomeAccounts.map(account => ({
+      ...account,
+      budgeted_amount: (budgetMap.get(account.account_id) || 0) * monthlyBudgetMultiplier,
+    }))
+
+    // Add budgeted amounts to expense accounts (prorated by month)
+    const expenseAccountsWithBudget = expenseAccounts.map(account => ({
+      ...account,
+      budgeted_amount: (budgetMap.get(account.account_id) || 0) * monthlyBudgetMultiplier,
+    }))
+
     const netIncrease = totalIncome - totalExpenses
 
     return {
       success: true,
       data: {
-        income: incomeAccounts,
-        expenses: expenseAccounts,
+        income: incomeAccountsWithBudget,
+        expenses: expenseAccountsWithBudget,
         totalIncome,
         totalExpenses,
         netIncrease,
@@ -727,9 +756,37 @@ export async function fetchQuarterlyIncomeStatement(
       })
     }
 
+    // Fetch budgets for the fiscal year
+    const { data: budgets } = await supabase
+      .from('budgets')
+      .select('account_id, budgeted_amount')
+      .eq('fiscal_year', year)
+
+    // Create a map of account_id to budgeted_amount
+    const budgetMap = new Map<string, number>()
+    if (budgets) {
+      for (const budget of budgets) {
+        budgetMap.set(budget.account_id, budget.budgeted_amount)
+      }
+    }
+
+    // Add budgeted amounts to quarterly data (prorated by quarter - 1/4 of annual budget)
+    const quarterlyBudgetMultiplier = 1 / 4
+    const quarterlyDataWithBudget = quarterlyData.map(quarterData => ({
+      ...quarterData,
+      income: quarterData.income.map(account => ({
+        ...account,
+        budgeted_amount: (budgetMap.get(account.account_id) || 0) * quarterlyBudgetMultiplier,
+      })),
+      expenses: quarterData.expenses.map(account => ({
+        ...account,
+        budgeted_amount: (budgetMap.get(account.account_id) || 0) * quarterlyBudgetMultiplier,
+      })),
+    }))
+
     return {
       success: true,
-      data: quarterlyData,
+      data: quarterlyDataWithBudget,
     }
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -745,6 +802,8 @@ export interface FundSummaryData {
   total_income: number
   total_expenses: number
   ending_balance: number
+  planned_income?: number
+  planned_expenses?: number
 }
 
 export async function fetchFundSummary(
@@ -794,6 +853,34 @@ export async function fetchFundSummary(
       return { success: false, error: ledgerError.message }
     }
 
+    // Fetch budgets for the fiscal year (use year from startDate)
+    const fiscalYear = new Date(startDate).getFullYear()
+    const { data: budgets } = await supabase
+      .from('budgets')
+      .select(`
+        account_id,
+        budgeted_amount,
+        chart_of_accounts (
+          id,
+          account_type
+        )
+      `)
+      .eq('fiscal_year', fiscalYear)
+
+    // Create a map of account_id to budgeted_amount and account_type
+    const budgetMap = new Map<string, { amount: number; account_type: string }>()
+    if (budgets) {
+      for (const budget of budgets) {
+        const account = budget.chart_of_accounts as any
+        if (account) {
+          budgetMap.set(budget.account_id, {
+            amount: budget.budgeted_amount,
+            account_type: account.account_type,
+          })
+        }
+      }
+    }
+
     // Calculate fund summaries
     const fundSummaries: FundSummaryData[] = []
 
@@ -802,9 +889,14 @@ export async function fetchFundSummary(
       let totalIncome = 0
       let totalExpenses = 0
       let endingBalance = 0
+      let plannedIncome = 0
+      let plannedExpenses = 0
 
       // Filter ledger lines for this fund
       const fundLines = (ledgerLines || []).filter(line => line.fund_id === fund.id)
+
+      // Track which accounts have activity in this fund during the period
+      const accountsWithActivity = new Set<string>()
 
       for (const line of fundLines) {
         const account = line.chart_of_accounts as any
@@ -828,14 +920,37 @@ export async function fetchFundSummary(
             // Income increases with credits
             totalIncome += line.credit
             totalIncome -= line.debit
+            accountsWithActivity.add(account.id)
           } else if (account?.account_type === 'Expense') {
             // Expenses increase with debits
             totalExpenses += line.debit
             totalExpenses -= line.credit
+            accountsWithActivity.add(account.id)
           }
           
           // Add to ending balance
           endingBalance += line.credit - line.debit
+        }
+      }
+
+      // Calculate planned amounts for accounts with activity in this fund
+      // Prorate annual budget based on date range
+      const startDateObj = new Date(startDate)
+      const endDateObj = new Date(endDate)
+      const daysInPeriod = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      const daysInYear = new Date(fiscalYear, 11, 31).getTime() - new Date(fiscalYear, 0, 1).getTime()
+      const daysInYearCount = Math.ceil(daysInYear / (1000 * 60 * 60 * 24))
+      const prorationFactor = daysInPeriod / daysInYearCount
+
+      for (const accountId of accountsWithActivity) {
+        const budget = budgetMap.get(accountId)
+        if (budget) {
+          const proratedAmount = budget.amount * prorationFactor
+          if (budget.account_type === 'Income') {
+            plannedIncome += proratedAmount
+          } else if (budget.account_type === 'Expense') {
+            plannedExpenses += proratedAmount
+          }
         }
       }
 
@@ -850,6 +965,8 @@ export async function fetchFundSummary(
         total_income: totalIncome,
         total_expenses: totalExpenses,
         ending_balance: endingBalance,
+        planned_income: plannedIncome,
+        planned_expenses: plannedExpenses,
       })
     }
 
