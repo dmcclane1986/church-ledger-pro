@@ -26,6 +26,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Bank Reconciliation** - Match bank statements with ledger, track cleared transactions  
 ✅ **Accounts Payable** - Track bills and vendor payments with proper accrual accounting  
 ✅ **Recurring Transactions** - Automate regular transactions with scheduled templates  
+✅ **Fixed Asset Tracking** - Track assets with automatic depreciation calculations  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 
@@ -68,6 +69,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Transaction Management** - View and manage all transactions  
 ✅ **Budget Planner** - Create and manage annual budgets by account  
 ✅ **Recurring Transaction Manager** - Create, pause, and process automated recurring transactions  
+✅ **Fixed Assets Manager** - Track assets, process depreciation, manage asset lifecycle  
 ✅ **Fund-to-Equity Mapping** - Link funds to net assets accounts for proper balance sheet reporting  
 ✅ **System Diagnostics** - Debug tools for balance verification and system health checks
 
@@ -183,6 +185,18 @@ Automate regular transactions with scheduled templates:
 - Color-coded status indicators (Overdue, Due Today, Due Soon, Active)
 - See [Recurring Transactions Quick Start](RECURRING_QUICK_START.md) for details
 
+### 12. Fixed Asset Tracking
+Track assets with automatic depreciation calculations:
+- Record buildings, vehicles, equipment, furniture
+- Straight-line depreciation method
+- Automatic monthly/yearly depreciation processing
+- Visual progress bars showing depreciation percentage
+- Track book value, accumulated depreciation, remaining life
+- Asset disposal with gain/loss calculation
+- Maintenance and repair history logging
+- Depreciation schedule tracking
+- See [Fixed Assets Implementation](FIXED_ASSETS_IMPLEMENTATION.md) for details
+
 ## 👥 User Roles
 
 ### Admin
@@ -246,6 +260,7 @@ Execute these migrations in order in your Supabase SQL Editor:
 12. **Bank Reconciliation**: `supabase/migrations/20260207000000_add_bank_reconciliation.sql`
 13. **Accounts Payable**: `supabase/migrations/20260207000001_create_accounts_payable_system.sql`
 14. **Recurring Transactions**: `supabase/migrations/20260207000002_create_recurring_transactions.sql`
+15. **Fixed Assets**: `supabase/migrations/20260207000003_create_fixed_assets_tracking.sql`
 
 ### 4. Create Your First User
 

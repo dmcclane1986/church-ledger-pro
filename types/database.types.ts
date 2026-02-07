@@ -552,6 +552,251 @@ export type Database = {
           },
         ]
       }
+      fixed_assets: {
+        Row: {
+          id: string
+          asset_name: string
+          description: string | null
+          serial_number: string | null
+          asset_tag: string | null
+          category: string | null
+          purchase_date: string
+          purchase_price: number
+          purchase_journal_entry_id: string | null
+          estimated_life_years: number
+          salvage_value: number
+          depreciation_method: Database["public"]["Enums"]["depreciation_method"]
+          fund_id: string
+          asset_account_id: string
+          accumulated_depreciation_account_id: string
+          depreciation_expense_account_id: string
+          depreciation_start_date: string
+          last_depreciation_date: string | null
+          accumulated_depreciation_amount: number
+          location: string | null
+          assigned_to: string | null
+          status: Database["public"]["Enums"]["asset_status"]
+          disposal_date: string | null
+          disposal_price: number | null
+          disposal_journal_entry_id: string | null
+          disposal_notes: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          asset_name: string
+          description?: string | null
+          serial_number?: string | null
+          asset_tag?: string | null
+          category?: string | null
+          purchase_date: string
+          purchase_price: number
+          purchase_journal_entry_id?: string | null
+          estimated_life_years: number
+          salvage_value?: number
+          depreciation_method?: Database["public"]["Enums"]["depreciation_method"]
+          fund_id: string
+          asset_account_id: string
+          accumulated_depreciation_account_id: string
+          depreciation_expense_account_id: string
+          depreciation_start_date: string
+          last_depreciation_date?: string | null
+          accumulated_depreciation_amount?: number
+          location?: string | null
+          assigned_to?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          disposal_date?: string | null
+          disposal_price?: number | null
+          disposal_journal_entry_id?: string | null
+          disposal_notes?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          asset_name?: string
+          description?: string | null
+          serial_number?: string | null
+          asset_tag?: string | null
+          category?: string | null
+          purchase_date?: string
+          purchase_price?: number
+          purchase_journal_entry_id?: string | null
+          estimated_life_years?: number
+          salvage_value?: number
+          depreciation_method?: Database["public"]["Enums"]["depreciation_method"]
+          fund_id?: string
+          asset_account_id?: string
+          accumulated_depreciation_account_id?: string
+          depreciation_expense_account_id?: string
+          depreciation_start_date?: string
+          last_depreciation_date?: string | null
+          accumulated_depreciation_amount?: number
+          location?: string | null
+          assigned_to?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          disposal_date?: string | null
+          disposal_price?: number | null
+          disposal_journal_entry_id?: string | null
+          disposal_notes?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fixed_assets_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_assets_asset_account_id_fkey"
+            columns: ["asset_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_assets_accumulated_depreciation_account_id_fkey"
+            columns: ["accumulated_depreciation_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fixed_assets_depreciation_expense_account_id_fkey"
+            columns: ["depreciation_expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      depreciation_schedule: {
+        Row: {
+          id: string
+          asset_id: string
+          period_start_date: string
+          period_end_date: string
+          fiscal_year: number
+          period_number: number
+          beginning_book_value: number
+          depreciation_amount: number
+          accumulated_depreciation: number
+          ending_book_value: number
+          journal_entry_id: string | null
+          recorded_date: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          asset_id: string
+          period_start_date: string
+          period_end_date: string
+          fiscal_year: number
+          period_number: number
+          beginning_book_value: number
+          depreciation_amount: number
+          accumulated_depreciation: number
+          ending_book_value: number
+          journal_entry_id?: string | null
+          recorded_date?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          asset_id?: string
+          period_start_date?: string
+          period_end_date?: string
+          fiscal_year?: number
+          period_number?: number
+          beginning_book_value?: number
+          depreciation_amount?: number
+          accumulated_depreciation?: number
+          ending_book_value?: number
+          journal_entry_id?: string | null
+          recorded_date?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depreciation_schedule_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "fixed_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "depreciation_schedule_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_maintenance_log: {
+        Row: {
+          id: string
+          asset_id: string
+          maintenance_date: string
+          maintenance_type: string
+          description: string
+          cost: number
+          performed_by: string | null
+          journal_entry_id: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          asset_id: string
+          maintenance_date: string
+          maintenance_type: string
+          description: string
+          cost?: number
+          performed_by?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          asset_id?: string
+          maintenance_date?: string
+          maintenance_type?: string
+          description?: string
+          cost?: number
+          performed_by?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_maintenance_log_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "fixed_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_maintenance_log_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reconciliations: {
         Row: {
           id: string
@@ -692,6 +937,8 @@ export type Database = {
     Enums: {
       account_type: "Asset" | "Liability" | "Equity" | "Income" | "Expense"
       recurring_frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "semiannually" | "yearly"
+      asset_status: "active" | "disposed" | "fully_depreciated" | "under_construction"
+      depreciation_method: "straight_line" | "declining_balance" | "units_of_production"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -821,6 +1068,8 @@ export const Constants = {
     Enums: {
       account_type: ["Asset", "Liability", "Equity", "Income", "Expense"],
       recurring_frequency: ["weekly", "biweekly", "monthly", "quarterly", "semiannually", "yearly"],
+      asset_status: ["active", "disposed", "fully_depreciated", "under_construction"],
+      depreciation_method: ["straight_line", "declining_balance", "units_of_production"],
     },
   },
 } as const
