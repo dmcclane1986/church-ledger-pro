@@ -23,6 +23,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Fund Transfers** - Transfer between funds without affecting total cash  
 ✅ **Account Transfers** - Move money between different bank accounts  
 ✅ **Weekly Deposit Form** - Batch entry for weekly giving with multiple donors and funds  
+✅ **Bank Reconciliation** - Match bank statements with ledger, track cleared transactions  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 
@@ -148,6 +149,16 @@ Batch entry for weekly giving collections:
 - Automatic double-entry for each donation
 - Perfect for processing Sunday collections
 - Summary totals before submission
+
+### 9. Bank Reconciliation
+Match your bank statement with your ledger:
+- Select checking account to reconcile
+- Enter statement date and ending balance
+- Check off transactions that appear on bank statement
+- Real-time running total shows cleared balance vs. statement balance
+- Finalize button turns green when balanced
+- Complete audit trail of all reconciliations
+- See [Bank Reconciliation Documentation](docs/BANK_RECONCILIATION.md) for details
 
 ## 👥 User Roles
 

@@ -167,6 +167,8 @@ export type Database = {
           journal_entry_id: string
           memo: string | null
           updated_at: string
+          is_cleared: boolean
+          cleared_at: string | null
         }
         Insert: {
           account_id: string
@@ -178,6 +180,8 @@ export type Database = {
           journal_entry_id: string
           memo?: string | null
           updated_at?: string
+          is_cleared?: boolean
+          cleared_at?: string | null
         }
         Update: {
           account_id?: string
@@ -189,6 +193,8 @@ export type Database = {
           journal_entry_id?: string
           memo?: string | null
           updated_at?: string
+          is_cleared?: boolean
+          cleared_at?: string | null
         }
         Relationships: [
           {
@@ -237,6 +243,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      reconciliations: {
+        Row: {
+          id: string
+          account_id: string
+          statement_date: string
+          statement_balance: number
+          reconciled_balance: number
+          status: string
+          notes: string | null
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          statement_date: string
+          statement_balance: number
+          reconciled_balance?: number
+          status?: string
+          notes?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          statement_date?: string
+          statement_balance?: number
+          reconciled_balance?: number
+          status?: string
+          notes?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
