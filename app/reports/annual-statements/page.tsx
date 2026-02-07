@@ -2,6 +2,7 @@ import Link from 'next/link'
 import AnnualStatementGenerator from '@/components/AnnualStatementGenerator'
 import { canViewDonorInfo } from '@/lib/auth/roles'
 import { redirect } from 'next/navigation'
+import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,9 +13,13 @@ export default async function AnnualStatementsPage() {
     redirect('/unauthorized')
   }
 
-  // You can customize these values or fetch from a settings table
-  const churchName = 'Your Church Name'
-  const churchAddress = '123 Church Street\nCity, State ZIP\nPhone: (555) 123-4567'
+  // Fetch from centralized settings
+  const settingsResult = await getChurchSettings()
+  const churchName = settingsResult.success && settingsResult.data 
+    ? settingsResult.data.organization_name 
+    : 'Your Church Name'
+  
+  const churchAddress = await getFormattedChurchAddress()
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -25,20 +30,20 @@ export default async function AnnualStatementsPage() {
         </p>
       </div>
 
-      {/* Church Info Customization Notice */}
-      <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-yellow-900 mb-2">
-          ⚙️ Church Information Configuration
+      {/* Church Info Configuration Notice */}
+      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-2">
+          ⚙️ Church Information
         </h3>
-        <p className="text-sm text-yellow-800 mb-2">
-          Before generating statements, update your church name and address in the code:
+        <p className="text-sm text-blue-800 mb-2">
+          To update your church name and address that appears on statements:
         </p>
-        <code className="text-xs bg-yellow-100 text-yellow-900 p-2 rounded block">
-          app/reports/annual-statements/page.tsx (lines 8-9)
-        </code>
-        <p className="text-xs text-yellow-700 mt-2">
-          Future enhancement: Add a church settings page to manage this centrally.
-        </p>
+        <a
+          href="/admin/settings"
+          className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          Go to Church Settings
+        </a>
       </div>
 
       {/* Statement Generator Component */}

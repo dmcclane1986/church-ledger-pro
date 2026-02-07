@@ -1,14 +1,19 @@
 import Link from 'next/link'
 import BalanceSheetReport from '@/components/BalanceSheetReport'
+import ReportHeaderServer from '@/components/ReportHeaderServer'
 
 export default function BalanceSheetPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Balance Sheet</h1>
-        <p className="text-gray-600 mt-2">
-          View your church&apos;s financial position and fund balances
-        </p>
+      {/* Report Header with Logo */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <ReportHeaderServer 
+          title="Balance Sheet"
+          subtitle="Statement of Financial Position"
+          showLogo={true}
+          showAddress={true}
+          centered={false}
+        />
       </div>
       
       <BalanceSheetReport />

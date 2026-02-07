@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { fetchIncomeStatement, IncomeStatementData } from '@/app/actions/reports'
+import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/settings'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { addPDFHeader, formatCurrency as pdfFormatCurrency, addPDFFooter, defaultTableStyles } from '@/lib/pdf/report-generator'
 
 export default function IncomeStatementReport() {
   const [year, setYear] = useState(new Date().getFullYear())
@@ -9,6 +13,7 @@ export default function IncomeStatementReport() {
   const [data, setData] = useState<IncomeStatementData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -43,6 +48,126 @@ export default function IncomeStatementReport() {
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
+
+  const exportToPDF = async () => {
+    if (!data) return
+    
+    setExporting(true)
+    try {
+      const doc = new jsPDF()
+      const settings = await getChurchSettings()
+      const address = await getFormattedChurchAddress()
+      
+      const churchName = settings.data?.organization_name || 'Church Ledger Pro'
+      const logoUrl = settings.data?.logo_url || null
+      
+      // Add header
+      const yPosition = await addPDFHeader(doc, {
+        logoUrl,
+        churchName,
+        churchAddress: address,
+        reportTitle: 'Income Statement',
+        reportSubtitle: 'Statement of Activities',
+        reportDate: `For the period: ${monthNames[month - 1]} ${year}`
+      })
+      
+      let currentY = yPosition
+      
+      // Revenue Section
+      doc.setFontSize(12)
+      doc.setFont('times', 'bold')
+      doc.text('REVENUE', 20, currentY)
+      currentY += 8
+      
+      const revenueData = data.income.map(account => [
+        account.account_name,
+        pdfFormatCurrency(account.budgeted_amount || 0),
+        pdfFormatCurrency(account.total)
+      ])
+      
+      const totalPlannedIncome = data.income.reduce((sum, account) => sum + (account.budgeted_amount || 0), 0)
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Account', 'Planned', 'Actual']],
+        body: revenueData,
+        foot: [['Total Revenue', pdfFormatCurrency(totalPlannedIncome), pdfFormatCurrency(data.totalIncome)]],
+        ...defaultTableStyles,
+        footStyles: {
+          fillColor: [46, 204, 113],
+          textColor: 255,
+          fontStyle: 'bold',
+        }
+      })
+      
+      currentY = (doc as any).lastAutoTable.finalY + 15
+      
+      // Expenses Section
+      doc.setFontSize(12)
+      doc.setFont('times', 'bold')
+      doc.text('EXPENSES', 20, currentY)
+      currentY += 8
+      
+      const expenseData = data.expenses.map(account => [
+        account.account_name,
+        pdfFormatCurrency(account.budgeted_amount || 0),
+        pdfFormatCurrency(account.total)
+      ])
+      
+      const totalPlannedExpenses = data.expenses.reduce((sum, account) => sum + (account.budgeted_amount || 0), 0)
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Account', 'Planned', 'Actual']],
+        body: expenseData,
+        foot: [['Total Expenses', pdfFormatCurrency(totalPlannedExpenses), pdfFormatCurrency(data.totalExpenses)]],
+        ...defaultTableStyles,
+        footStyles: {
+          fillColor: [231, 76, 60],
+          textColor: 255,
+          fontStyle: 'bold',
+        }
+      })
+      
+      currentY = (doc as any).lastAutoTable.finalY + 15
+      
+      // Net Income
+      const netPlannedIncome = totalPlannedIncome - totalPlannedExpenses
+      const netActualIncome = data.totalIncome - data.totalExpenses
+      const netIncomeColor = netActualIncome >= 0 ? [46, 204, 113] : [231, 76, 60]
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['', '', '']],
+        body: [[
+          'NET INCOME (LOSS)',
+          pdfFormatCurrency(netPlannedIncome),
+          pdfFormatCurrency(netActualIncome)
+        ]],
+        theme: 'plain',
+        headStyles: { fillColor: [255, 255, 255] },
+        bodyStyles: {
+          fillColor: netIncomeColor,
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 11,
+        },
+        margin: { left: 20, right: 20 }
+      })
+      
+      // Add footer
+      addPDFFooter(doc)
+      
+      // Save PDF
+      doc.save(`Income-Statement-${monthNames[month - 1]}-${year}.pdf`)
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -86,6 +211,34 @@ export default function IncomeStatementReport() {
           </div>
         </div>
       </div>
+
+      {/* Print Button */}
+      {data && !loading && !error && (
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={exportToPDF}
+            disabled={exporting}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          >
+            {exporting ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>Print Report</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (

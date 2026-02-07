@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { fetchFundSummary, FundSummaryData } from '@/app/actions/reports'
+import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/settings'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { addPDFHeader, formatCurrency as pdfFormatCurrency, addPDFFooter, defaultTableStyles } from '@/lib/pdf/report-generator'
 
 export default function FundSummaryReport() {
   const [startDate, setStartDate] = useState(() => {
@@ -16,6 +20,7 @@ export default function FundSummaryReport() {
   const [data, setData] = useState<FundSummaryData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -62,6 +67,147 @@ export default function FundSummaryReport() {
   const grandTotalExpenses = totalUnrestrictedExpenses + totalRestrictedExpenses
   const grandTotalEnding = totalUnrestrictedEnding + totalRestrictedEnding
 
+  const exportToPDF = async () => {
+    if (data.length === 0) return
+    
+    setExporting(true)
+    try {
+      const doc = new jsPDF()
+      const settings = await getChurchSettings()
+      const address = await getFormattedChurchAddress()
+      
+      const churchName = settings.data?.organization_name || 'Church Ledger Pro'
+      const logoUrl = settings.data?.logo_url || null
+      
+      // Add header
+      const yPosition = await addPDFHeader(doc, {
+        logoUrl,
+        churchName,
+        churchAddress: address,
+        reportTitle: 'Fund Summary Report',
+        reportSubtitle: 'Fund Activity Report',
+        reportDate: `Period: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
+      })
+      
+      let currentY = yPosition
+      
+      // Unrestricted Funds Section
+      if (unrestrictedFunds.length > 0) {
+        doc.setFontSize(12)
+        doc.setFont('times', 'bold')
+        doc.text('UNRESTRICTED FUNDS', 20, currentY)
+        currentY += 8
+        
+        const unrestrictedData = unrestrictedFunds.map(fund => [
+          fund.fund_name,
+          pdfFormatCurrency(fund.beginning_balance),
+          pdfFormatCurrency(fund.total_income),
+          pdfFormatCurrency(fund.total_expenses),
+          pdfFormatCurrency(fund.ending_balance)
+        ])
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Fund', 'Beginning', 'Income', 'Expenses', 'Ending']],
+          body: unrestrictedData,
+          foot: [[
+            'Total Unrestricted',
+            pdfFormatCurrency(totalUnrestrictedBeginning),
+            pdfFormatCurrency(totalUnrestrictedIncome),
+            pdfFormatCurrency(totalUnrestrictedExpenses),
+            pdfFormatCurrency(totalUnrestrictedEnding)
+          ]],
+          ...defaultTableStyles,
+          footStyles: {
+            fillColor: [52, 152, 219],
+            textColor: 255,
+            fontStyle: 'bold',
+          }
+        })
+        
+        currentY = (doc as any).lastAutoTable.finalY + 15
+      }
+      
+      // Restricted Funds Section
+      if (restrictedFunds.length > 0) {
+        doc.setFontSize(12)
+        doc.setFont('times', 'bold')
+        doc.text('RESTRICTED FUNDS', 20, currentY)
+        currentY += 8
+        
+        const restrictedData = restrictedFunds.map(fund => [
+          fund.fund_name,
+          pdfFormatCurrency(fund.beginning_balance),
+          pdfFormatCurrency(fund.total_income),
+          pdfFormatCurrency(fund.total_expenses),
+          pdfFormatCurrency(fund.ending_balance)
+        ])
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Fund', 'Beginning', 'Income', 'Expenses', 'Ending']],
+          body: restrictedData,
+          foot: [[
+            'Total Restricted',
+            pdfFormatCurrency(totalRestrictedBeginning),
+            pdfFormatCurrency(totalRestrictedIncome),
+            pdfFormatCurrency(totalRestrictedExpenses),
+            pdfFormatCurrency(totalRestrictedEnding)
+          ]],
+          ...defaultTableStyles,
+          headStyles: {
+            fillColor: [155, 89, 182],
+            textColor: 255,
+            fontStyle: 'bold',
+          },
+          footStyles: {
+            fillColor: [155, 89, 182],
+            textColor: 255,
+            fontStyle: 'bold',
+          }
+        })
+        
+        currentY = (doc as any).lastAutoTable.finalY + 15
+      }
+      
+      // Grand Total
+      autoTable(doc, {
+        startY: currentY,
+        head: [['', '', '', '', '']],
+        body: [[
+          'GRAND TOTAL',
+          pdfFormatCurrency(grandTotalBeginning),
+          pdfFormatCurrency(grandTotalIncome),
+          pdfFormatCurrency(grandTotalExpenses),
+          pdfFormatCurrency(grandTotalEnding)
+        ]],
+        theme: 'plain',
+        headStyles: { fillColor: [255, 255, 255] },
+        bodyStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 11,
+        },
+        margin: { left: 20, right: 20 }
+      })
+      
+      // Add footer
+      addPDFFooter(doc)
+      
+      // Save PDF
+      const startDateStr = new Date(startDate).toISOString().split('T')[0]
+      const endDateStr = new Date(endDate).toISOString().split('T')[0]
+      doc.save(`Fund-Summary-${startDateStr}-to-${endDateStr}.pdf`)
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Date Range Picker */}
@@ -94,6 +240,34 @@ export default function FundSummaryReport() {
           </div>
         </div>
       </div>
+
+      {/* Print Button */}
+      {data.length > 0 && !loading && !error && (
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={exportToPDF}
+            disabled={exporting}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          >
+            {exporting ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>Print Report</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (

@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { fetchQuarterlyIncomeStatement, QuarterlyIncomeStatementData } from '@/app/actions/reports'
+import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/settings'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { addPDFHeader, formatCurrency as pdfFormatCurrency, addPDFFooter, defaultTableStyles } from '@/lib/pdf/report-generator'
 
 export default function QuarterlyIncomeStatementReport() {
   const [year, setYear] = useState(new Date().getFullYear())
@@ -9,6 +13,7 @@ export default function QuarterlyIncomeStatementReport() {
   const [data, setData] = useState<QuarterlyIncomeStatementData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -43,6 +48,204 @@ export default function QuarterlyIncomeStatementReport() {
   const filteredData = selectedQuarter === 0 
     ? data 
     : data.filter(q => q.quarterNumber === selectedQuarter)
+
+  const exportToPDF = async () => {
+    if (filteredData.length === 0) return
+    
+    setExporting(true)
+    try {
+      const doc = new jsPDF('portrait') // Portrait mode for better readability
+      const settings = await getChurchSettings()
+      const address = await getFormattedChurchAddress()
+      
+      const churchName = settings.data?.organization_name || 'Church Ledger Pro'
+      const logoUrl = settings.data?.logo_url || null
+      
+      // Determine report subtitle
+      const quarterNames = ['', 'Q1 (Jan-Mar)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dec)']
+      const subtitle = selectedQuarter === 0 
+        ? 'Quarterly Comparison - All Quarters'
+        : `Quarter ${selectedQuarter} - ${quarterNames[selectedQuarter]}`
+      
+      // Add header
+      const yPosition = await addPDFHeader(doc, {
+        logoUrl,
+        churchName,
+        churchAddress: address,
+        reportTitle: 'Quarterly Income Statement',
+        reportSubtitle: subtitle,
+        reportDate: `Year: ${year}`
+      })
+      
+      let currentY = yPosition
+      
+      // Prepare columns based on filtered data - show Planned and Actual for each quarter
+      const columns = ['Account']
+      filteredData.forEach(q => {
+        columns.push(`Q${q.quarterNumber}\nPlanned`)
+        columns.push(`Q${q.quarterNumber}\nActual`)
+      })
+      
+      // Get all unique account names
+      const allAccounts = new Set<string>()
+      filteredData.forEach(q => {
+        if (q.income && Array.isArray(q.income)) {
+          q.income.forEach(r => allAccounts.add(r.account_name))
+        }
+        if (q.expenses && Array.isArray(q.expenses)) {
+          q.expenses.forEach(e => allAccounts.add(e.account_name))
+        }
+      })
+      
+      // Revenue Section
+      doc.setFontSize(12)
+      doc.setFont('times', 'bold')
+      doc.text('REVENUE', 20, currentY)
+      currentY += 8
+      
+      // Get unique revenue accounts
+      const revenueAccounts = new Set<string>()
+      filteredData.forEach(q => {
+        if (q.income && Array.isArray(q.income)) {
+          q.income.forEach(r => revenueAccounts.add(r.account_name))
+        }
+      })
+      
+      const revenueData: any[] = []
+      Array.from(revenueAccounts).sort().forEach(accountName => {
+        const row = [accountName]
+        filteredData.forEach(q => {
+          const account = q.income && Array.isArray(q.income) 
+            ? q.income.find(r => r.account_name === accountName)
+            : null
+          row.push(pdfFormatCurrency(account?.budgeted_amount || 0))
+          row.push(pdfFormatCurrency(account?.total || 0))
+        })
+        revenueData.push(row)
+      })
+      
+      // Revenue totals
+      const revenueTotalRow = ['Total Revenue']
+      filteredData.forEach(q => {
+        const totalBudgeted = q.income && Array.isArray(q.income)
+          ? q.income.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0)
+          : 0
+        revenueTotalRow.push(pdfFormatCurrency(totalBudgeted))
+        revenueTotalRow.push(pdfFormatCurrency(q.totalIncome || 0))
+      })
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [columns],
+        body: revenueData,
+        foot: [revenueTotalRow],
+        ...defaultTableStyles,
+        footStyles: {
+          fillColor: [46, 204, 113],
+          textColor: 255,
+          fontStyle: 'bold',
+        }
+      })
+      
+      currentY = (doc as any).lastAutoTable.finalY + 15
+      
+      // Expenses Section
+      doc.setFontSize(12)
+      doc.setFont('times', 'bold')
+      doc.text('EXPENSES', 20, currentY)
+      currentY += 8
+      
+      // Get unique expense accounts
+      const expenseAccounts = new Set<string>()
+      filteredData.forEach(q => {
+        if (q.expenses && Array.isArray(q.expenses)) {
+          q.expenses.forEach(e => expenseAccounts.add(e.account_name))
+        }
+      })
+      
+      const expenseData: any[] = []
+      Array.from(expenseAccounts).sort().forEach(accountName => {
+        const row = [accountName]
+        filteredData.forEach(q => {
+          const account = q.expenses && Array.isArray(q.expenses) 
+            ? q.expenses.find(e => e.account_name === accountName)
+            : null
+          row.push(pdfFormatCurrency(account?.budgeted_amount || 0))
+          row.push(pdfFormatCurrency(account?.total || 0))
+        })
+        expenseData.push(row)
+      })
+      
+      // Expense totals
+      const expenseTotalRow = ['Total Expenses']
+      filteredData.forEach(q => {
+        const totalBudgeted = q.expenses && Array.isArray(q.expenses)
+          ? q.expenses.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0)
+          : 0
+        expenseTotalRow.push(pdfFormatCurrency(totalBudgeted))
+        expenseTotalRow.push(pdfFormatCurrency(q.totalExpenses || 0))
+      })
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [columns],
+        body: expenseData,
+        foot: [expenseTotalRow],
+        ...defaultTableStyles,
+        footStyles: {
+          fillColor: [231, 76, 60],
+          textColor: 255,
+          fontStyle: 'bold',
+        }
+      })
+      
+      currentY = (doc as any).lastAutoTable.finalY + 15
+      
+      // Net Income
+      const netIncomeRow = ['NET INCOME (LOSS)']
+      filteredData.forEach(q => {
+        const totalBudgetedIncome = q.income && Array.isArray(q.income)
+          ? q.income.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0)
+          : 0
+        const totalBudgetedExpenses = q.expenses && Array.isArray(q.expenses)
+          ? q.expenses.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0)
+          : 0
+        const netBudgeted = totalBudgetedIncome - totalBudgetedExpenses
+        const netActual = (q.totalIncome || 0) - (q.totalExpenses || 0)
+        
+        netIncomeRow.push(pdfFormatCurrency(netBudgeted))
+        netIncomeRow.push(pdfFormatCurrency(netActual))
+      })
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [columns],
+        body: [netIncomeRow],
+        theme: 'plain',
+        headStyles: { fillColor: [255, 255, 255] },
+        bodyStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 11,
+        },
+        margin: { left: 20, right: 20 }
+      })
+      
+      // Add footer
+      addPDFFooter(doc)
+      
+      // Save PDF
+      const quarterSuffix = selectedQuarter === 0 ? 'All-Quarters' : `Q${selectedQuarter}`
+      doc.save(`Quarterly-Income-Statement-${year}-${quarterSuffix}.pdf`)
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -86,6 +289,34 @@ export default function QuarterlyIncomeStatementReport() {
           </div>
         </div>
       </div>
+
+      {/* Print Button */}
+      {filteredData.length > 0 && !loading && !error && (
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={exportToPDF}
+            disabled={exporting}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          >
+            {exporting ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>Print Report</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (

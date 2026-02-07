@@ -3,10 +3,15 @@ import "./globals.css";
 import { createServerClient } from '@/lib/supabase/server'
 import { isAdmin, canEditTransactions } from '@/lib/auth/roles'
 import LogoutButton from '@/components/LogoutButton'
+import { getChurchSettings } from '@/app/actions/settings'
+import ChurchLogoServer from '@/components/ChurchLogoServer'
 
 export const metadata: Metadata = {
   title: "Church Ledger Pro",
   description: "Professional fund accounting for churches",
+  icons: {
+    icon: 'https://nwnxihhmnabxcowxuyav.supabase.co/storage/v1/object/public/church-logos/logo-1770504290081.jpg',
+  },
 };
 
 export default async function RootLayout({
@@ -21,6 +26,12 @@ export default async function RootLayout({
   
   const adminAccess = user ? await isAdmin() : false
   const canEdit = user ? await canEditTransactions() : false
+  
+  // Get church settings for organization name
+  const settingsResult = await getChurchSettings()
+  const orgName = settingsResult.success && settingsResult.data 
+    ? settingsResult.data.organization_name 
+    : 'Church Ledger Pro'
 
   return (
     <html lang="en">
@@ -30,8 +41,9 @@ export default async function RootLayout({
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between h-16">
                 <div className="flex items-center">
-                  <a href="/" className="text-xl font-bold text-gray-900 hover:text-gray-700">
-                    ⛪ Church Ledger Pro
+                  <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <ChurchLogoServer size="small" />
+                    <span className="text-xl font-bold text-gray-900">{orgName}</span>
                   </a>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -206,6 +218,14 @@ export default async function RootLayout({
                             role="menuitem"
                           >
                             Fixed Assets
+                          </a>
+                          <div className="border-t border-gray-100 my-1"></div>
+                          <a
+                            href="/admin/settings"
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            role="menuitem"
+                          >
+                            Church Settings
                           </a>
                         </div>
                       </div>

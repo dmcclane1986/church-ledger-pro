@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
+import { getChurchSettings } from '@/app/actions/settings'
+import ChurchLogoServer from '@/components/ChurchLogoServer'
 import LoginForm from './LoginForm'
 
 export const dynamic = 'force-dynamic'
@@ -16,15 +18,19 @@ export default async function LoginPage() {
     redirect('/')
   }
 
+  // Get church settings for branding
+  const settingsResult = await getChurchSettings()
+  const orgName = settingsResult.data?.organization_name || 'Church Ledger Pro'
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-white rounded-full shadow-lg mb-4">
-            <span className="text-5xl">⛪</span>
+          <div className="inline-flex items-center justify-center p-6 bg-white rounded-2xl shadow-xl mb-4">
+            <ChurchLogoServer size="large" priority />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Church Ledger Pro</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{orgName}</h1>
           <p className="text-gray-600">Sign in to your account</p>
         </div>
 

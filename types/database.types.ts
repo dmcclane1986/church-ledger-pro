@@ -797,6 +797,84 @@ export type Database = {
           },
         ]
       }
+      church_settings: {
+        Row: {
+          id: string
+          organization_name: string
+          legal_name: string | null
+          ein: string | null
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          state: string | null
+          zip_code: string | null
+          country: string
+          phone: string | null
+          fax: string | null
+          email: string | null
+          website: string | null
+          pastor_name: string | null
+          pastor_email: string | null
+          pastor_phone: string | null
+          logo_url: string | null
+          primary_color: string
+          secondary_color: string
+          fiscal_year_start_month: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_name?: string
+          legal_name?: string | null
+          ein?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          state?: string | null
+          zip_code?: string | null
+          country?: string
+          phone?: string | null
+          fax?: string | null
+          email?: string | null
+          website?: string | null
+          pastor_name?: string | null
+          pastor_email?: string | null
+          pastor_phone?: string | null
+          logo_url?: string | null
+          primary_color?: string
+          secondary_color?: string
+          fiscal_year_start_month?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_name?: string
+          legal_name?: string | null
+          ein?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          state?: string | null
+          zip_code?: string | null
+          country?: string
+          phone?: string | null
+          fax?: string | null
+          email?: string | null
+          website?: string | null
+          pastor_name?: string | null
+          pastor_email?: string | null
+          pastor_phone?: string | null
+          logo_url?: string | null
+          primary_color?: string
+          secondary_color?: string
+          fiscal_year_start_month?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reconciliations: {
         Row: {
           id: string

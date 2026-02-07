@@ -69,20 +69,49 @@ export default function AnnualStatementGenerator({
     // Set font
     doc.setFont('times', 'normal')
 
-    // Church Letterhead
-    doc.setFontSize(16)
-    doc.setFont('times', 'bold')
-    doc.text(churchName, margin, yPosition)
-    yPosition += 7
+    // Try to load and add church logo
+    try {
+      const logoUrl = 'https://nwnxihhmnabxcowxuyav.supabase.co/storage/v1/object/public/church-logos/logo-1770504290081.jpg'
+      const logoSize = 20 // 20mm square
+      
+      // Add logo on the left
+      doc.addImage(logoUrl, 'JPEG', margin, yPosition, logoSize, logoSize)
+      
+      // Church Letterhead (next to logo)
+      const textStartX = margin + logoSize + 5
+      doc.setFontSize(16)
+      doc.setFont('times', 'bold')
+      doc.text(churchName, textStartX, yPosition + 5)
+      
+      doc.setFontSize(10)
+      doc.setFont('times', 'normal')
+      const addressLines = churchAddress.split('\n')
+      let addressY = yPosition + 11
+      addressLines.forEach(line => {
+        doc.text(line, textStartX, addressY)
+        addressY += 5
+      })
+      
+      yPosition += Math.max(logoSize, addressY - yPosition) + 5
+    } catch (error) {
+      // Fallback if logo fails to load
+      console.warn('Could not load logo for PDF, using text-only header:', error)
+      
+      // Church Letterhead (text only)
+      doc.setFontSize(16)
+      doc.setFont('times', 'bold')
+      doc.text(churchName, margin, yPosition)
+      yPosition += 7
 
-    doc.setFontSize(10)
-    doc.setFont('times', 'normal')
-    const addressLines = churchAddress.split('\n')
-    addressLines.forEach(line => {
-      doc.text(line, margin, yPosition)
-      yPosition += 5
-    })
-    yPosition += 10
+      doc.setFontSize(10)
+      doc.setFont('times', 'normal')
+      const addressLines = churchAddress.split('\n')
+      addressLines.forEach(line => {
+        doc.text(line, margin, yPosition)
+        yPosition += 5
+      })
+      yPosition += 10
+    }
 
     // Title
     doc.setFontSize(14)

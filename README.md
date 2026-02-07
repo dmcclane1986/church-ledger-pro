@@ -70,6 +70,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Budget Planner** - Create and manage annual budgets by account  
 ✅ **Recurring Transaction Manager** - Create, pause, and process automated recurring transactions  
 ✅ **Fixed Assets Manager** - Track assets, process depreciation, manage asset lifecycle  
+✅ **Church Settings** - Centralized organization information for reports and statements  
 ✅ **Fund-to-Equity Mapping** - Link funds to net assets accounts for proper balance sheet reporting  
 ✅ **System Diagnostics** - Debug tools for balance verification and system health checks
 
@@ -261,6 +262,7 @@ Execute these migrations in order in your Supabase SQL Editor:
 13. **Accounts Payable**: `supabase/migrations/20260207000001_create_accounts_payable_system.sql`
 14. **Recurring Transactions**: `supabase/migrations/20260207000002_create_recurring_transactions.sql`
 15. **Fixed Assets**: `supabase/migrations/20260207000003_create_fixed_assets_tracking.sql`
+16. **Church Settings**: `supabase/migrations/20260207000004_create_church_settings.sql`
 
 ### 4. Create Your First User
 
@@ -320,14 +322,19 @@ church-ledger-pro/
 │   │   ├── accounts.ts             # Chart of Accounts management
 │   │   ├── funds.ts                # Fund management
 │   │   ├── users.ts                # User management
-│   │   └── settings.ts             # System settings
+│   │   ├── reconciliation.ts       # Bank reconciliation
+│   │   ├── ap_actions.ts           # Accounts payable
+│   │   ├── recurring.ts            # Recurring transactions
+│   │   ├── assets.ts               # Fixed asset tracking
+│   │   └── settings.ts             # Church settings
 │   ├── admin/
 │   │   ├── accounts/               # Chart of Accounts editor
 │   │   ├── funds/                  # Fund management
 │   │   ├── users/                   # User role management
 │   │   ├── transactions/           # Transaction management
 │   │   ├── budget-planner/         # Budget creation/editing
-│   │   ├── settings/                # Fund-to-Equity mappings
+│   │   ├── recurring/              # Recurring transaction templates
+│   │   ├── settings/                # Church settings & Fund-to-Equity mappings
 │   │   └── diagnostics/            # System diagnostics
 │   ├── reports/
 │   │   ├── balance-sheet/
@@ -346,6 +353,10 @@ church-ledger-pro/
 │   │   ├── fund-transfer/          # Fund Transfer page
 │   │   ├── account-transfer/       # Account Transfer page
 │   │   └── page.tsx                # Weekly Deposit Form
+│   ├── reconciliation/             # Bank reconciliation
+│   ├── ap/                         # Accounts payable dashboard
+│   ├── inventory/
+│   │   └── assets/                 # Fixed asset tracking
 │   ├── login/                       # Login page
 │   ├── signup/                      # Signup page
 │   ├── auth/                        # Auth callbacks
@@ -399,6 +410,13 @@ church-ledger-pro/
 │   ├── add_equity_liability_columns.sql
 │   ├── auto_assign_role_trigger.sql
 │   └── assign_user_role.sql
+├── supabase/
+│   └── migrations/
+│       ├── 20260207000000_add_bank_reconciliation.sql
+│       ├── 20260207000001_create_accounts_payable_system.sql
+│       ├── 20260207000002_create_recurring_transactions.sql
+│       ├── 20260207000003_create_fixed_assets_tracking.sql
+│       └── 20260207000004_create_church_settings.sql
 ├── middleware.ts                   # Route protection
 └── types/
     └── database.types.ts
@@ -468,6 +486,15 @@ View real-time financial metrics:
 - Perfect for board reports and donor accountability
 
 ### Admin Features
+
+#### Church Settings
+- Configure organization name, legal name, and EIN
+- Set mailing address for statements and reports
+- Enter contact information (phone, email, website)
+- Add pastor information
+- Set fiscal year start month
+- Information automatically used in reports and statements
+- Access via Admin → Church Settings
 
 #### Fund-to-Equity Mapping
 - Link each fund to its corresponding net assets account
