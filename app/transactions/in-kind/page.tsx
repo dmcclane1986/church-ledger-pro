@@ -112,19 +112,6 @@ export default async function InKindDonationPage() {
         <p className="mt-2 text-sm text-gray-600">
           Record non-cash donations such as equipment, tools, supplies, or services
         </p>
-        
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4 flex-wrap">
-          <Link href="/transactions" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            ← Back to Transactions
-          </Link>
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports/donor-statements" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Donor Statements
-          </Link>
-        </div>
       </div>
       
       {/* Form Card */}

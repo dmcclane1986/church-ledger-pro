@@ -17,18 +17,6 @@ export default async function AdminTransactionsPage() {
         <p className="mt-2 text-sm text-gray-600">
           View, edit, and delete all transactions in the system
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/admin/accounts" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Accounts
-          </Link>
-          <Link href="/admin/funds" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Funds
-          </Link>
-        </div>
       </div>
 
       {error ? (

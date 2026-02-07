@@ -70,19 +70,6 @@ export default async function BankStatementImportPage() {
         <p className="mt-2 text-sm text-gray-600">
           Import expenses from your bank CSV file
         </p>
-        
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4 flex-wrap">
-          <Link href="/transactions" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            ← Back to Transactions
-          </Link>
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/transactions/import" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Online Giving Import
-          </Link>
-        </div>
       </div>
 
       {/* Setup Check */}

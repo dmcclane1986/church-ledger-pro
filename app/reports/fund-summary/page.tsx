@@ -11,15 +11,6 @@ export default function FundSummaryPage() {
         <p className="mt-2 text-sm text-gray-600">
           View beginning balances, income, expenses, and ending balances for all funds
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → All Reports
-          </Link>
-        </div>
       </div>
 
       <FundSummaryReport />

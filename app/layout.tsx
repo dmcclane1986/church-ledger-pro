@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { createServerClient } from '@/lib/supabase/server'
-import { isAdmin } from '@/lib/auth/roles'
+import { isAdmin, canEditTransactions } from '@/lib/auth/roles'
 import LogoutButton from '@/components/LogoutButton'
 
 export const metadata: Metadata = {
@@ -20,6 +20,7 @@ export default async function RootLayout({
   } = await supabase.auth.getUser()
   
   const adminAccess = user ? await isAdmin() : false
+  const canEdit = user ? await canEditTransactions() : false
 
   return (
     <html lang="en">
@@ -41,8 +42,9 @@ export default async function RootLayout({
                     Dashboard
                   </a>
                   
-                  {/* Transactions Dropdown */}
-                  <div className="relative group">
+                  {/* Transactions Dropdown - Only show for Admin and Bookkeeper */}
+                  {canEdit && (
+                    <div className="relative group">
                     <button className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium inline-flex items-center">
                       Transactions
                       <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,6 +106,7 @@ export default async function RootLayout({
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <a
                     href="/reports"

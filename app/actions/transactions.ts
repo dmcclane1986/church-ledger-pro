@@ -792,132 +792,272 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
       return { success: false, error: 'Missions fund must be selected when missions amount is provided' }
     }
 
-    // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
-      .from('journal_entries')
-      .insert({
-        entry_date: input.date,
-        description: input.description,
-        reference_number: null,
-      })
-      .select()
-      .single()
+    const createdJournalEntryIds: string[] = []
 
-    if (journalError) {
-      console.error('Journal entry error:', journalError)
-      return { success: false, error: 'Failed to create journal entry' }
-    }
+    // Step 1: Create individual journal entries for each check with a donor_id
+    for (const check of input.checks) {
+      if (check.donorId && check.amount > 0) {
+        const { data: checkEntry, error: checkError } = await supabase
+          .from('journal_entries')
+          .insert({
+            entry_date: input.date,
+            description: `Check #${check.referenceNumber}`,
+            reference_number: check.referenceNumber,
+            donor_id: check.donorId,
+          })
+          .select()
+          .single()
 
-    // Step 2: Build ledger lines array
-    const ledgerLines: Array<{
-      journal_entry_id: string
-      account_id: string
-      fund_id: string
-      debit: number
-      credit: number
-      memo: string | null
-    }> = []
+        if (checkError) {
+          console.error('Check journal entry error:', checkError)
+          // Rollback: delete all created entries
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return { success: false, error: 'Failed to create check entry' }
+        }
 
-    // Debit: Checking account (total deposit) - split by fund
-    // We need to debit the checking account for each fund portion
+        createdJournalEntryIds.push(checkEntry.id)
 
-    // General fund checking debit
-    if (input.generalFundAmount > 0) {
-      ledgerLines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: input.checkingAccountId,
-        fund_id: input.generalFundId,
-        debit: input.generalFundAmount,
-        credit: 0,
-        memo: 'Cash received - General Fund',
-      })
+        // Create ledger lines for this check (Debit: Checking, Credit: Income)
+        const checkLedgerLines = [
+          {
+            journal_entry_id: checkEntry.id,
+            account_id: input.checkingAccountId,
+            fund_id: input.generalFundId,
+            debit: check.amount,
+            credit: 0,
+            memo: `Check #${check.referenceNumber}`,
+          },
+          {
+            journal_entry_id: checkEntry.id,
+            account_id: input.generalIncomeAccountId,
+            fund_id: input.generalFundId,
+            debit: 0,
+            credit: check.amount,
+            memo: 'Tithes & Offerings',
+          },
+        ]
 
-      // Credit: General income account
-      ledgerLines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: input.generalIncomeAccountId,
-        fund_id: input.generalFundId,
-        debit: 0,
-        credit: input.generalFundAmount,
-        memo: 'Tithes & Offerings - General',
-      })
-    }
+        const { error: checkLedgerError } = await supabase
+          .from('ledger_lines')
+          .insert(checkLedgerLines)
 
-    // Missions fund
-    if (input.missionsAmount && input.missionsAmount > 0 && input.missionsFundId) {
-      ledgerLines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: input.checkingAccountId,
-        fund_id: input.missionsFundId,
-        debit: input.missionsAmount,
-        credit: 0,
-        memo: 'Cash received - Missions',
-      })
-
-      // Credit: Missions income (use general income account or find missions-specific)
-      ledgerLines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: input.generalIncomeAccountId,
-        fund_id: input.missionsFundId,
-        debit: 0,
-        credit: input.missionsAmount,
-        memo: 'Missions Giving',
-      })
-    }
-
-    // Designated items
-    for (const item of input.designatedItems) {
-      if (item.amount > 0) {
-        ledgerLines.push({
-          journal_entry_id: journalEntry.id,
-          account_id: input.checkingAccountId,
-          fund_id: item.fundId,
-          debit: item.amount,
-          credit: 0,
-          memo: `Cash received - ${item.description}`,
-        })
-
-        ledgerLines.push({
-          journal_entry_id: journalEntry.id,
-          account_id: item.accountId,
-          fund_id: item.fundId,
-          debit: 0,
-          credit: item.amount,
-          memo: item.description,
-        })
+        if (checkLedgerError) {
+          console.error('Check ledger lines error:', checkLedgerError)
+          // Rollback all
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return { success: false, error: 'Failed to create check ledger entries' }
+        }
       }
     }
 
-    // Step 3: Insert all ledger lines
-    const { error: ledgerError } = await supabase
-      .from('ledger_lines')
-      .insert(ledgerLines)
+    // Step 2: Create individual journal entries for each envelope with a donor_id
+    for (const envelope of input.envelopes) {
+      if (envelope.donorId && envelope.amount > 0) {
+        const { data: envelopeEntry, error: envelopeError } = await supabase
+          .from('journal_entries')
+          .insert({
+            entry_date: input.date,
+            description: `Envelope donation`,
+            reference_number: null,
+            donor_id: envelope.donorId,
+          })
+          .select()
+          .single()
 
-    if (ledgerError) {
-      console.error('Ledger lines error:', ledgerError)
-      // Rollback: Delete the journal entry if ledger lines failed
-      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
-      return { success: false, error: 'Failed to create ledger entries' }
+        if (envelopeError) {
+          console.error('Envelope journal entry error:', envelopeError)
+          // Rollback all
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return { success: false, error: 'Failed to create envelope entry' }
+        }
+
+        createdJournalEntryIds.push(envelopeEntry.id)
+
+        // Create ledger lines for this envelope (Debit: Checking, Credit: Income)
+        const envelopeLedgerLines = [
+          {
+            journal_entry_id: envelopeEntry.id,
+            account_id: input.checkingAccountId,
+            fund_id: input.generalFundId,
+            debit: envelope.amount,
+            credit: 0,
+            memo: 'Envelope donation',
+          },
+          {
+            journal_entry_id: envelopeEntry.id,
+            account_id: input.generalIncomeAccountId,
+            fund_id: input.generalFundId,
+            debit: 0,
+            credit: envelope.amount,
+            memo: 'Tithes & Offerings',
+          },
+        ]
+
+        const { error: envelopeLedgerError } = await supabase
+          .from('ledger_lines')
+          .insert(envelopeLedgerLines)
+
+        if (envelopeLedgerError) {
+          console.error('Envelope ledger lines error:', envelopeLedgerError)
+          // Rollback all
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return { success: false, error: 'Failed to create envelope ledger entries' }
+        }
+      }
     }
 
-    // Step 4: Verify the entry is balanced
-    // Calculate totals from ledger lines
-    const totalDebits = ledgerLines.reduce((sum, line) => sum + line.debit, 0)
-    const totalCredits = ledgerLines.reduce((sum, line) => sum + line.credit, 0)
-    const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01 // Allow for rounding errors
+    // Step 3: Create journal entry for remaining amounts (general fund, missions, designated, loose cash, checks/envelopes without donors)
+    // Calculate the amount already recorded with individual entries
+    const checksWithDonors = input.checks
+      .filter(c => c.donorId && c.amount > 0)
+      .reduce((sum, c) => sum + c.amount, 0)
+    const envelopesWithDonors = input.envelopes
+      .filter(e => e.donorId && e.amount > 0)
+      .reduce((sum, e) => sum + e.amount, 0)
+    
+    const remainingGeneralFundAmount = input.generalFundAmount - checksWithDonors - envelopesWithDonors
 
-    if (!isBalanced) {
-      console.error('Unbalanced entry. Debits:', totalDebits, 'Credits:', totalCredits)
-      // Rollback if not balanced
-      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
-      return {
-        success: false,
-        error: `Transaction is not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`,
+    // Only create a main entry if there's remaining amount, missions, or designated items
+    if (remainingGeneralFundAmount > 0.01 || (input.missionsAmount && input.missionsAmount > 0) || input.designatedItems.length > 0) {
+      const { data: mainEntry, error: mainError } = await supabase
+        .from('journal_entries')
+        .insert({
+          entry_date: input.date,
+          description: input.description,
+          reference_number: null,
+        })
+        .select()
+        .single()
+
+      if (mainError) {
+        console.error('Main journal entry error:', mainError)
+        // Rollback all
+        for (const id of createdJournalEntryIds) {
+          await supabase.from('journal_entries').delete().eq('id', id)
+        }
+        return { success: false, error: 'Failed to create main journal entry' }
+      }
+
+      createdJournalEntryIds.push(mainEntry.id)
+
+      const ledgerLines: Array<{
+        journal_entry_id: string
+        account_id: string
+        fund_id: string
+        debit: number
+        credit: number
+        memo: string | null
+      }> = []
+
+      // General fund remaining amount (loose cash + untracked items)
+      if (remainingGeneralFundAmount > 0.01) {
+        ledgerLines.push({
+          journal_entry_id: mainEntry.id,
+          account_id: input.checkingAccountId,
+          fund_id: input.generalFundId,
+          debit: remainingGeneralFundAmount,
+          credit: 0,
+          memo: 'Cash received - General Fund',
+        })
+
+        ledgerLines.push({
+          journal_entry_id: mainEntry.id,
+          account_id: input.generalIncomeAccountId,
+          fund_id: input.generalFundId,
+          debit: 0,
+          credit: remainingGeneralFundAmount,
+          memo: 'Tithes & Offerings - General',
+        })
+      }
+
+      // Missions fund
+      if (input.missionsAmount && input.missionsAmount > 0 && input.missionsFundId) {
+        ledgerLines.push({
+          journal_entry_id: mainEntry.id,
+          account_id: input.checkingAccountId,
+          fund_id: input.missionsFundId,
+          debit: input.missionsAmount,
+          credit: 0,
+          memo: 'Cash received - Missions',
+        })
+
+        ledgerLines.push({
+          journal_entry_id: mainEntry.id,
+          account_id: input.generalIncomeAccountId,
+          fund_id: input.missionsFundId,
+          debit: 0,
+          credit: input.missionsAmount,
+          memo: 'Missions Giving',
+        })
+      }
+
+      // Designated items
+      for (const item of input.designatedItems) {
+        if (item.amount > 0) {
+          ledgerLines.push({
+            journal_entry_id: mainEntry.id,
+            account_id: input.checkingAccountId,
+            fund_id: item.fundId,
+            debit: item.amount,
+            credit: 0,
+            memo: `Cash received - ${item.description}`,
+          })
+
+          ledgerLines.push({
+            journal_entry_id: mainEntry.id,
+            account_id: item.accountId,
+            fund_id: item.fundId,
+            debit: 0,
+            credit: item.amount,
+            memo: item.description,
+          })
+        }
+      }
+
+      // Insert ledger lines for main entry
+      if (ledgerLines.length > 0) {
+        const { error: ledgerError } = await supabase
+          .from('ledger_lines')
+          .insert(ledgerLines)
+
+        if (ledgerError) {
+          console.error('Ledger lines error:', ledgerError)
+          // Rollback all
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return { success: false, error: 'Failed to create ledger entries' }
+        }
+
+        // Verify main entry is balanced
+        const totalDebits = ledgerLines.reduce((sum, line) => sum + line.debit, 0)
+        const totalCredits = ledgerLines.reduce((sum, line) => sum + line.credit, 0)
+        const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
+
+        if (!isBalanced) {
+          console.error('Unbalanced entry. Debits:', totalDebits, 'Credits:', totalCredits)
+          // Rollback all
+          for (const id of createdJournalEntryIds) {
+            await supabase.from('journal_entries').delete().eq('id', id)
+          }
+          return {
+            success: false,
+            error: `Transaction is not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`,
+          }
+        }
       }
     }
 
     revalidatePath('/transactions')
-    return { success: true, journalEntryId: journalEntry.id }
+    return { success: true, journalEntryId: createdJournalEntryIds[0] || '' }
   } catch (error) {
     console.error('Unexpected error:', error)
     return { success: false, error: 'An unexpected error occurred' }

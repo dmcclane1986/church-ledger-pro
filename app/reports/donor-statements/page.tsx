@@ -1,10 +1,18 @@
 import Link from 'next/link'
 import { fetchDonors } from '@/app/actions/donors'
 import DonorStatementForm from '@/components/DonorStatementForm'
+import { canViewDonorInfo } from '@/lib/auth/roles'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DonorStatementsPage() {
+  // Check if user can view donor info (Admin and Bookkeeper only)
+  const canView = await canViewDonorInfo()
+  if (!canView) {
+    redirect('/unauthorized')
+  }
+
   const donorsResult = await fetchDonors()
   const donors = donorsResult.data || []
 
@@ -15,18 +23,6 @@ export default async function DonorStatementsPage() {
         <p className="mt-2 text-sm text-gray-600">
           Generate annual contribution statements for tax purposes
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/transactions" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Transactions
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Reports
-          </Link>
-        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

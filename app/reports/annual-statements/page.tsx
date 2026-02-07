@@ -1,9 +1,17 @@
 import Link from 'next/link'
 import AnnualStatementGenerator from '@/components/AnnualStatementGenerator'
+import { canViewDonorInfo } from '@/lib/auth/roles'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AnnualStatementsPage() {
+  // Check if user can view donor info (Admin and Bookkeeper only)
+  const canView = await canViewDonorInfo()
+  if (!canView) {
+    redirect('/unauthorized')
+  }
+
   // You can customize these values or fetch from a settings table
   const churchName = 'Your Church Name'
   const churchAddress = '123 Church Street\nCity, State ZIP\nPhone: (555) 123-4567'
@@ -15,19 +23,6 @@ export default async function AnnualStatementsPage() {
         <p className="mt-2 text-sm text-gray-600">
           Generate professional PDF statements for tax purposes
         </p>
-        
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4 flex-wrap">
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            ← Back to Reports
-          </Link>
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports/donor-statements" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Online Donor Statements
-          </Link>
-        </div>
       </div>
 
       {/* Church Info Customization Notice */}

@@ -74,6 +74,9 @@ export default function WeeklyDepositForm({
 
   // Check entries
   const [checks, setChecks] = useState<CheckEntry[]>([])
+  
+  // Manual check total for verification
+  const [manualCheckTotal, setManualCheckTotal] = useState('')
 
   // Envelope entries
   const [envelopes, setEnvelopes] = useState<EnvelopeEntry[]>([])
@@ -96,6 +99,44 @@ export default function WeeklyDepositForm({
   useEffect(() => {
     loadDonors()
   }, [])
+
+  // Auto-select Missions fund on mount and when funds change
+  useEffect(() => {
+    if (funds.length > 0) {
+      // Find Missions fund by name (case-insensitive, looks for "mission" or "missions")
+      const missionsFund = funds.find(
+        (fund) => fund.name.toLowerCase().includes('mission')
+      )
+      if (missionsFund && missionsFundId !== missionsFund.id) {
+        setMissionsFundId(missionsFund.id)
+      }
+
+      // Find General fund by name (case-insensitive, looks for "general")
+      const generalFund = funds.find(
+        (fund) => fund.name.toLowerCase().includes('general')
+      )
+      if (generalFund && generalFundId !== generalFund.id) {
+        setGeneralFundId(generalFund.id)
+      }
+    }
+  }, [funds, missionsFundId, generalFundId])
+
+  // Auto-select Tithes and Offerings income account on mount and when accounts change
+  useEffect(() => {
+    if (incomeAccounts.length > 0) {
+      // Find Tithes and Offerings account by name (case-insensitive)
+      const tithesAccount = incomeAccounts.find(
+        (account) => 
+          account.name.toLowerCase().includes('tithes') || 
+          account.name.toLowerCase().includes('offerings') ||
+          account.name.toLowerCase().includes('tithe') ||
+          account.name.toLowerCase().includes('offering')
+      )
+      if (tithesAccount && generalIncomeAccountId !== tithesAccount.id) {
+        setGeneralIncomeAccountId(tithesAccount.id)
+      }
+    }
+  }, [incomeAccounts, generalIncomeAccountId])
 
   const loadDonors = async () => {
     const result = await fetchDonors()
@@ -162,6 +203,15 @@ export default function WeeklyDepositForm({
     return checks.reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0)
   }, [checks])
 
+  // Validate manual check total against calculated total
+  const checkTotalMatches = useMemo(() => {
+    if (!manualCheckTotal || manualCheckTotal === '') return null // No validation if empty
+    const manualTotal = parseFloat(manualCheckTotal)
+    if (isNaN(manualTotal)) return false
+    // Allow small floating point differences (within 0.01)
+    return Math.abs(manualTotal - totalChecks) < 0.01
+  }, [manualCheckTotal, totalChecks])
+
   // Calculate total envelopes
   const totalEnvelopes = useMemo(() => {
     return envelopes.reduce((sum, env) => sum + (parseFloat(env.amount) || 0), 0)
@@ -171,6 +221,20 @@ export default function WeeklyDepositForm({
   const looseCashAmount = useMemo(() => {
     return parseFloat(looseCash) || 0
   }, [looseCash])
+
+  // Calculate total from envelopes + loose cash
+  const totalEnvelopeAndLooseCash = useMemo(() => {
+    return totalEnvelopes + looseCashAmount
+  }, [totalEnvelopes, looseCashAmount])
+
+  // Validate calculated cash total (envelope + loose) against counted cash
+  const cashTotalMatches = useMemo(() => {
+    // Only validate if there's actual cash entered (envelope or loose cash)
+    if (totalEnvelopeAndLooseCash === 0 && totalCash === 0) return null // Both zero, no validation needed
+    if (totalEnvelopeAndLooseCash === 0) return null // No envelope/loose cash entered yet
+    // Allow small floating point differences (within 0.01)
+    return Math.abs(totalEnvelopeAndLooseCash - totalCash) < 0.01
+  }, [totalEnvelopeAndLooseCash, totalCash])
 
   // Calculate missions amount
   const missionsTotal = useMemo(() => {
@@ -260,6 +324,28 @@ export default function WeeklyDepositForm({
     // Validation
     if (!allDenominationsValid) {
       setError('Invalid denomination values entered. Please ensure each value is a valid multiple of its denomination.')
+      setLoading(false)
+      return
+    }
+
+    // Validate check total if entered
+    if (manualCheckTotal && manualCheckTotal !== '') {
+      const manualTotal = parseFloat(manualCheckTotal)
+      if (isNaN(manualTotal)) {
+        setError('Please enter a valid check total amount')
+        setLoading(false)
+        return
+      }
+      if (Math.abs(manualTotal - totalChecks) >= 0.01) {
+        setError(`Check total mismatch! You entered $${manualTotal.toFixed(2)} but the sum of check entries is $${totalChecks.toFixed(2)}. Please verify your check entries.`)
+        setLoading(false)
+        return
+      }
+    }
+
+    // Validate cash total (envelope + loose cash vs counted cash)
+    if (totalEnvelopeAndLooseCash > 0 && Math.abs(totalEnvelopeAndLooseCash - totalCash) >= 0.01) {
+      setError(`Cash total mismatch! Envelope + loose cash total is $${totalEnvelopeAndLooseCash.toFixed(2)} but the counted cash total is $${totalCash.toFixed(2)}. Please verify your amounts.`)
       setLoading(false)
       return
     }
@@ -430,6 +516,7 @@ export default function WeeklyDepositForm({
     setNickels('')
     setPennies('')
     setChecks([])
+    setManualCheckTotal('')
     setEnvelopes([])
     setLooseCash('')
     setMissionsAmount('')
@@ -468,6 +555,131 @@ export default function WeeklyDepositForm({
           />
         </div>
       </div>
+
+      {/* Total Check Amount Input for Verification */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">📝 Total Check Amount (Verification)</h3>
+        <p className="text-xs text-gray-600 mb-3">Enter the total check amount to verify against check entries below</p>
+        <div className="relative mb-3">
+          <span className="absolute left-3 top-2 text-gray-500">$</span>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={manualCheckTotal}
+            onChange={(e) => setManualCheckTotal(e.target.value)}
+            step="0.01"
+            min="0"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        {checkTotalMatches === true && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-2">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span className="text-sm text-green-800">Check total matches! (${totalChecks.toFixed(2)})</span>
+            </div>
+          </div>
+        )}
+        {checkTotalMatches === true && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-2">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span className="text-sm text-green-800">Check total matches!</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Donor & Envelope Tracking */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold text-gray-900">✉️ Envelope Cash</h3>
+          <div className="flex gap-2">
+            <a
+              href="/donors/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              + New Donor
+            </a>
+            <button
+              type="button"
+              onClick={addEnvelope}
+              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              + Add Envelope
+            </button>
+          </div>
+        </div>
+
+        {envelopes.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-4">No envelopes added yet</p>
+        ) : (
+          <div className="space-y-2">
+            {envelopes.map((envelope) => (
+              <div key={envelope.id} className="flex gap-2">
+                <select
+                  value={envelope.donorId}
+                  onChange={(e) => updateEnvelope(envelope.id, 'donorId', e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">-- Select Donor --</option>
+                  {donors.map((donor) => (
+                    <option key={donor.id} value={donor.id}>
+                      {donor.name} {donor.envelope_number && `(#${donor.envelope_number})`}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={envelope.amount}
+                    onChange={(e) => updateEnvelope(envelope.id, 'amount', e.target.value)}
+                    step="0.01"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeEnvelope(envelope.id)}
+                  className="px-3 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-700">Total Envelopes:</span>
+            <span className="text-lg font-bold text-green-600">${totalEnvelopes.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Loose Cash */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">💸 Loose Cash</h3>
+        <div className="relative">
+          <span className="absolute left-3 top-2 text-gray-500">$</span>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={looseCash}
+            onChange={(e) => setLooseCash(e.target.value)}
+            step="0.01"
+            min="0"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
 
       {/* Cash & Coin Counter */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -849,114 +1061,29 @@ export default function WeeklyDepositForm({
         </div>
       </div>
 
-      {/* Donor & Envelope Tracking */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">✉️ Envelope Cash</h3>
-          <div className="flex gap-2">
-            <a
-              href="/donors/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              + New Donor
-            </a>
-            <button
-              type="button"
-              onClick={addEnvelope}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              + Add Envelope
-            </button>
-          </div>
-        </div>
-
-        {envelopes.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No envelopes added yet</p>
-        ) : (
-          <div className="space-y-2">
-            {envelopes.map((envelope) => (
-              <div key={envelope.id} className="flex gap-2">
-                <select
-                  value={envelope.donorId}
-                  onChange={(e) => updateEnvelope(envelope.id, 'donorId', e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">-- Select Donor --</option>
-                  {donors.map((donor) => (
-                    <option key={donor.id} value={donor.id}>
-                      {donor.name} {donor.envelope_number && `(#${donor.envelope_number})`}
-                    </option>
-                  ))}
-                </select>
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={envelope.amount}
-                    onChange={(e) => updateEnvelope(envelope.id, 'amount', e.target.value)}
-                    step="0.01"
-                    min="0"
-                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeEnvelope(envelope.id)}
-                  className="px-3 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-700">Total Envelopes:</span>
-            <span className="text-lg font-bold text-green-600">${totalEnvelopes.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Loose Cash */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">💸 Loose Cash</h3>
-        <div className="relative">
-          <span className="absolute left-3 top-2 text-gray-500">$</span>
-          <input
-            type="number"
-            placeholder="0.00"
-            value={looseCash}
-            onChange={(e) => setLooseCash(e.target.value)}
-            step="0.01"
-            min="0"
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-
       {/* Missions Giving */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">🌍 Missions Giving</h3>
         <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Missions Fund</label>
-            <select
-              value={missionsFundId}
-              onChange={(e) => setMissionsFundId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Select Fund --</option>
-              {funds.map((fund) => (
-                <option key={fund.id} value={fund.id}>
-                  {fund.name} {fund.is_restricted && '(Restricted)'}
-                </option>
-              ))}
-            </select>
+            {(() => {
+              const missionsFund = funds.find(
+                (fund) => fund.name.toLowerCase().includes('mission')
+              )
+              if (missionsFund) {
+                return (
+                  <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-700">
+                    {missionsFund.name} {missionsFund.is_restricted && '(Restricted)'}
+                  </div>
+                )
+              }
+              return (
+                <div className="w-full px-3 py-2 bg-yellow-50 border border-yellow-300 rounded text-yellow-800 text-sm">
+                  No Missions fund found. Please create a fund with "Mission" in the name.
+                </div>
+              )
+            })()}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
@@ -1090,18 +1217,23 @@ export default function WeeklyDepositForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               General Fund <span className="text-red-500">*</span>
             </label>
-            <select
-              value={generalFundId}
-              onChange={(e) => setGeneralFundId(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {funds.map((fund) => (
-                <option key={fund.id} value={fund.id}>
-                  {fund.name} {fund.is_restricted && '(Restricted)'}
-                </option>
-              ))}
-            </select>
+            {(() => {
+              const generalFund = funds.find(
+                (fund) => fund.name.toLowerCase().includes('general')
+              )
+              if (generalFund) {
+                return (
+                  <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-700">
+                    {generalFund.name} {generalFund.is_restricted && '(Restricted)'}
+                  </div>
+                )
+              }
+              return (
+                <div className="w-full px-3 py-2 bg-yellow-50 border border-yellow-300 rounded text-yellow-800 text-sm">
+                  No General fund found. Please create a fund with "General" in the name.
+                </div>
+              )
+            })()}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1119,9 +1251,60 @@ export default function WeeklyDepositForm({
                 </option>
               ))}
             </select>
+            {(() => {
+              const tithesAccount = incomeAccounts.find(
+                (account) => 
+                  account.name.toLowerCase().includes('tithes') || 
+                  account.name.toLowerCase().includes('offerings') ||
+                  account.name.toLowerCase().includes('tithe') ||
+                  account.name.toLowerCase().includes('offering')
+              )
+              if (!tithesAccount) {
+                return (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    ⚠️ No Tithes and Offerings account found. Defaulting to first available account.
+                  </p>
+                )
+              }
+              return null
+            })()}
           </div>
         </div>
       </div>
+
+      {/* Check Total Discrepancy Warning - Only shown if there's a mismatch */}
+      {checkTotalMatches === false && manualCheckTotal && manualCheckTotal !== '' && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-red-600 text-xl">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-red-900 mb-2">Check Total Discrepancy Detected</h4>
+              <div className="space-y-1 text-sm text-red-800">
+                <p>You entered: <span className="font-semibold">${(parseFloat(manualCheckTotal) || 0).toFixed(2)}</span></p>
+                <p>Calculated total from check entries: <span className="font-semibold">${totalChecks.toFixed(2)}</span></p>
+                <p className="text-xs mt-2">Please verify your check entries match the total you entered.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cash Total Discrepancy Warning - Only shown if there's a mismatch */}
+      {cashTotalMatches === false && totalEnvelopeAndLooseCash > 0 && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-red-600 text-xl">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-red-900 mb-2">Cash Total Discrepancy Detected</h4>
+              <div className="space-y-1 text-sm text-red-800">
+                <p>Envelope + loose cash total: <span className="font-semibold">${totalEnvelopeAndLooseCash.toFixed(2)}</span></p>
+                <p>Counted cash total: <span className="font-semibold">${totalCash.toFixed(2)}</span></p>
+                <p className="text-xs mt-2">Please verify your envelope and loose cash amounts match the counted cash total.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Deposit Summary */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300">

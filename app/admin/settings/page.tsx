@@ -22,18 +22,6 @@ export default async function AdminSettingsPage() {
         <p className="mt-2 text-sm text-gray-600">
           Configure fund-to-equity mappings and accounting preferences
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/admin/funds" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Manage Funds
-          </Link>
-          <Link href="/admin/accounts" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Chart of Accounts
-          </Link>
-        </div>
       </div>
 
       {error ? (

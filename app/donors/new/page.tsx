@@ -32,21 +32,6 @@ export default async function AddDonorPage() {
           </Link>
         </div>
 
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link
-            href="/"
-            className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-          >
-            → Dashboard
-          </Link>
-          <Link
-            href="/reports/donor-statements"
-            className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-          >
-            → Donor Statements
-          </Link>
-        </div>
       </div>
 
       {/* Add Donor Form */}

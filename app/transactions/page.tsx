@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase/server'
 import WeeklyDepositForm from '@/components/WeeklyDepositForm'
+import { canEditTransactions } from '@/lib/auth/roles'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +58,12 @@ async function getCheckingAccount() {
 }
 
 export default async function TransactionsPage() {
+  // Check if user can edit transactions (Admin and Bookkeeper only)
+  const canEdit = await canEditTransactions()
+  if (!canEdit) {
+    redirect('/unauthorized')
+  }
+
   const [funds, incomeAccounts, checkingAccount] = await Promise.all([
     getFunds(),
     getIncomeAccounts(),
@@ -66,30 +74,6 @@ export default async function TransactionsPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4 flex-wrap">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Reports
-          </Link>
-          <Link href="/transactions/expense" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Record Expense
-          </Link>
-          <Link href="/transactions/in-kind" className="text-purple-600 hover:text-purple-800 font-medium text-sm">
-            🎁 In-Kind Donation
-          </Link>
-          <Link href="/transactions/bank-statement" className="text-orange-600 hover:text-orange-800 font-medium text-sm">
-            → Import Bank Statement (Expenses)
-          </Link>
-          <Link href="/transactions/import" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Import Online Giving
-          </Link>
-          <Link href="/donors/new" className="text-green-600 hover:text-green-800 font-medium text-sm">
-            + Add New Donor
-          </Link>
-        </div>
       </div>
       
       {/* Weekly Deposit Form - Full Width */}

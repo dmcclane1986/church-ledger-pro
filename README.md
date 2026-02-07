@@ -22,14 +22,16 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Import Online Giving** - Batch import online donations with processing fees  
 ✅ **Fund Transfers** - Transfer between funds without affecting total cash  
 ✅ **Account Transfers** - Move money between different bank accounts  
+✅ **Weekly Deposit Form** - Batch entry for weekly giving with multiple donors and funds  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 
 ### Financial Reports
-✅ **Dashboard** - Real-time stat cards and 6-month trend charts  
+✅ **Dashboard** - Real-time stat cards, YTD metrics, fund activity, and 6-month trend charts  
 ✅ **Balance Sheet** - View assets, liabilities, and net assets with fund balances  
 ✅ **Income Statement** - Monthly revenue and expenses with period selection  
 ✅ **Quarterly Income Statement** - Q1-Q4 revenue and expense comparison  
+✅ **Fund Summary Report** - Beginning balances, income, expenses, and ending balances per fund  
 ✅ **Transaction History** - Searchable list with void capability  
 ✅ **Donor Statements (Online)** - View and print contribution statements  
 ✅ **Annual Donor Statements (PDF)** - Professional year-end tax statements with IRS-compliant formatting  
@@ -41,24 +43,46 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Color-Coded Alerts** - Green/Yellow/Orange/Red indicators for spending levels  
 ✅ **Multi-Year Support** - Track budgets across fiscal years
 
+### Authentication & User Management
+✅ **Email/Password Login** - Secure authentication with Supabase  
+✅ **User Signup** - Self-registration with email confirmation support  
+✅ **User Profiles** - Automatic profile creation on signup with full name  
+✅ **Session Management** - Secure server-side session handling  
+✅ **Protected Routes** - Middleware redirects unauthenticated users  
+✅ **Logout Functionality** - Secure sign-out with session cleanup
+
 ### Security & Privacy
 ✅ **Role-Based Access Control** - Admin, Bookkeeper, and Viewer roles  
 ✅ **Donor Privacy** - Viewer role hides donor names in reports  
 ✅ **Route Protection** - Middleware enforces role-based page access  
-✅ **Row Level Security** - Database-level access control
+✅ **Row Level Security** - Database-level access control  
+✅ **Automatic Role Assignment** - Database trigger assigns default roles
+
+### Admin Features
+✅ **Fund Management** - Create, edit, and manage funds with restricted/unrestricted flags  
+✅ **Account Management** - Full Chart of Accounts editor with hierarchical structure  
+✅ **User Management** - Assign and manage user roles (Admin, Bookkeeper, Viewer)  
+✅ **Transaction Management** - View and manage all transactions  
+✅ **Budget Planner** - Create and manage annual budgets by account  
+✅ **Fund-to-Equity Mapping** - Link funds to net assets accounts for proper balance sheet reporting  
+✅ **System Diagnostics** - Debug tools for balance verification and system health checks
 
 ### Technical Features
 ✅ **TypeScript** - Fully typed database and API layer  
 ✅ **Modern UI** - Responsive design with Tailwind CSS  
 ✅ **Server Actions** - Type-safe server-side operations  
-✅ **Optimistic Updates** - Fast, responsive user interface
+✅ **Optimistic Updates** - Fast, responsive user interface  
+✅ **PDF Generation** - jsPDF for professional donor statements  
+✅ **CSV Import** - PapaParse for bank statement and online giving imports
 
 ## 📊 Dashboard
 
 The dashboard provides at-a-glance financial health:
 - **Total Cash on Hand** - Sum of all assets
-- **Total Income (MTD)** - Month-to-date income  
-- **Total Expenses (MTD)** - Month-to-date expenses
+- **Total Income (MTD)** - Month-to-date income with planned comparison
+- **Total Expenses (MTD)** - Month-to-date expenses with planned comparison
+- **Year-to-Date Metrics** - YTD Income, Expenses, and Net Increase/Decrease with planned comparisons
+- **YTD Fund Activity** - Income, expenses, and net change per fund with restricted/unrestricted indicators
 - **6-Month Trend Chart** - Income vs. Expenses comparison
 - **Quick Actions** - Fast access to common tasks
 
@@ -117,6 +141,14 @@ Move money between bank accounts:
 - Same fund, different accounts
 - Updates account balances
 
+### 8. Weekly Deposit Form
+Batch entry for weekly giving collections:
+- Add multiple donations in one form
+- Each donation can have different donor, fund, and income account
+- Automatic double-entry for each donation
+- Perfect for processing Sunday collections
+- Summary totals before submission
+
 ## 👥 User Roles
 
 ### Admin
@@ -167,15 +199,35 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 Execute these migrations in order in your Supabase SQL Editor:
 
 1. **Base Schema**: `SETUP.sql` (creates tables and initial structure)
-2. **Voiding Support**: `migrations/add_voided_status.sql` or `migrations/add_donor_id_to_journal_entries.sql`
+2. **Voiding Support**: `migrations/add_voided_status.sql`
 3. **Donor Tracking**: `migrations/add_donors_table.sql`
-4. **In-Kind Flag**: `migrations/add_in_kind_flag.sql`
-5. **Budgeting**: `migrations/add_budgets_table.sql`
-6. **User Roles**: `migrations/add_user_roles.sql`
+4. **Donor ID to Journal Entries**: `migrations/add_donor_id_to_journal_entries.sql`
+5. **Donor ID to Ledger Lines**: `migrations/add_donor_id_to_ledger_lines.sql` (optional)
+6. **In-Kind Flag**: `migrations/add_in_kind_flag.sql`
+7. **Budgeting**: `migrations/add_budgets_table.sql`
+8. **User Roles**: `migrations/add_user_roles.sql`
+9. **User Profiles**: `migrations/add_profiles_table.sql`
+10. **Equity/Liability Columns**: `migrations/add_equity_liability_columns.sql`
+11. **Auto-Assign Role**: `migrations/auto_assign_role_trigger.sql` (optional, for automatic role assignment)
 
-### 4. Assign First Admin User
+### 4. Create Your First User
 
-After running migrations, assign yourself as admin:
+**Option A: Sign Up via Web Interface**
+1. Start the dev server: `npm run dev`
+2. Navigate to `http://localhost:3000/signup`
+3. Fill in email, password, and full name
+4. Submit the form
+5. If email confirmation is disabled, you'll be logged in immediately
+
+**Option B: Create User in Supabase Dashboard**
+1. Go to Supabase Dashboard → Authentication → Users
+2. Click "Add User"
+3. Enter email and password
+4. User is created immediately
+
+### 5. Assign Admin Role
+
+After creating your user, assign yourself as admin:
 
 ```sql
 -- Get your user ID from Supabase Auth dashboard, then:
@@ -183,13 +235,19 @@ INSERT INTO user_roles (user_id, role, created_by)
 VALUES ('your-user-uuid-here', 'admin', 'your-user-uuid-here');
 ```
 
-### 5. Seed Initial Data
+Or use the migration helper:
+```sql
+-- Run migrations/assign_user_role.sql with your email
+```
+
+### 6. Seed Initial Data
 
 Run the sample data from `SETUP.sql` to create:
 - Funds (General, Building, Mission)
 - Chart of Accounts (1000-5999)
+- Sample equity accounts for fund mapping
 
-### 6. Run Development Server
+### 7. Run Development Server
 
 ```bash
 npm run dev
@@ -206,11 +264,24 @@ church-ledger-pro/
 │   │   ├── transactions.ts        # Giving, Expense, Transfers, In-Kind
 │   │   ├── reports.ts              # Financial reports, Annual statements
 │   │   ├── donors.ts               # Donor management
-│   │   └── budgets.ts              # Budget tracking
+│   │   ├── budgets.ts              # Budget tracking
+│   │   ├── accounts.ts             # Chart of Accounts management
+│   │   ├── funds.ts                # Fund management
+│   │   ├── users.ts                # User management
+│   │   └── settings.ts             # System settings
+│   ├── admin/
+│   │   ├── accounts/               # Chart of Accounts editor
+│   │   ├── funds/                  # Fund management
+│   │   ├── users/                   # User role management
+│   │   ├── transactions/           # Transaction management
+│   │   ├── budget-planner/         # Budget creation/editing
+│   │   ├── settings/                # Fund-to-Equity mappings
+│   │   └── diagnostics/            # System diagnostics
 │   ├── reports/
 │   │   ├── balance-sheet/
 │   │   ├── income-statement/
 │   │   ├── quarterly-income/       # Q1-Q4 comparison
+│   │   ├── fund-summary/            # Fund activity report
 │   │   ├── transaction-history/
 │   │   ├── donor-statements/       # Online statements
 │   │   ├── annual-statements/      # PDF generation
@@ -222,7 +293,10 @@ church-ledger-pro/
 │   │   ├── bank-statement/         # Bank Statement import
 │   │   ├── fund-transfer/          # Fund Transfer page
 │   │   ├── account-transfer/       # Account Transfer page
-│   │   └── page.tsx                # Record Giving page
+│   │   └── page.tsx                # Weekly Deposit Form
+│   ├── login/                       # Login page
+│   ├── signup/                      # Signup page
+│   ├── auth/                        # Auth callbacks
 │   ├── unauthorized/               # Access denied page
 │   ├── page.tsx                    # Dashboard home
 │   └── layout.tsx                  # Root layout with nav
@@ -232,24 +306,47 @@ church-ledger-pro/
 │   ├── InKindDonationForm.tsx
 │   ├── BankStatementImporter.tsx
 │   ├── BatchOnlineDonationForm.tsx
+│   ├── WeeklyDepositForm.tsx       # Weekly batch entry
 │   ├── FundTransferForm.tsx
+│   ├── AccountTransferForm.tsx
 │   ├── DonorStatementForm.tsx
 │   ├── AnnualStatementGenerator.tsx
 │   ├── BudgetVarianceDisplay.tsx
+│   ├── BudgetPlanner.tsx
+│   ├── BudgetYearSelector.tsx
 │   ├── DashboardChart.tsx
-│   └── TransactionHistory.tsx
+│   ├── TransactionHistory.tsx
+│   ├── TransactionManagement.tsx
+│   ├── BalanceSheetReport.tsx
+│   ├── IncomeStatementReport.tsx
+│   ├── QuarterlyIncomeStatementReport.tsx
+│   ├── FundSummaryReport.tsx
+│   ├── AccountManagement.tsx
+│   ├── FundManagement.tsx
+│   ├── FundEquityMappingManager.tsx
+│   ├── UserManagement.tsx
+│   └── LogoutButton.tsx
 ├── lib/
 │   ├── auth/
 │   │   ├── roles.ts                # Server-side role checks
 │   │   └── useUserRole.ts          # Client-side role hook
-│   └── supabase/
-│       ├── client.ts
-│       └── server.ts
+│   ├── supabase/
+│   │   ├── client.ts
+│   │   └── server.ts
+│   └── pdf/
+│       └── statement-generator.ts  # PDF generation utilities
 ├── migrations/
 │   ├── add_voided_status.sql
 │   ├── add_donors_table.sql
+│   ├── add_donor_id_to_journal_entries.sql
+│   ├── add_donor_id_to_ledger_lines.sql
+│   ├── add_in_kind_flag.sql
 │   ├── add_budgets_table.sql
-│   └── add_user_roles.sql
+│   ├── add_user_roles.sql
+│   ├── add_profiles_table.sql
+│   ├── add_equity_liability_columns.sql
+│   ├── auto_assign_role_trigger.sql
+│   └── assign_user_role.sql
 ├── middleware.ts                   # Route protection
 └── types/
     └── database.types.ts
@@ -311,6 +408,29 @@ View real-time financial metrics:
 - Void incorrect transactions
 - Donor names hidden for Viewer role
 
+#### Fund Summary Report
+- View beginning balances for each fund
+- See income and expenses per fund
+- Calculate ending balances
+- Track restricted vs. unrestricted funds
+- Perfect for board reports and donor accountability
+
+### Admin Features
+
+#### Fund-to-Equity Mapping
+- Link each fund to its corresponding net assets account
+- Ensures proper balance sheet reporting
+- Required for accurate financial statements
+- Access via Admin → Settings
+
+#### System Diagnostics
+- View fund configurations
+- Check calculated fund balances
+- Verify equity account setup
+- Review recent transactions
+- Debug balance sheet issues
+- Access via Admin → Diagnostics
+
 ## 🔐 Security Features
 
 ### Role-Based Access Control (RBAC)
@@ -321,9 +441,13 @@ View real-time financial metrics:
 
 ### Route Protection
 - `/admin/*` - Admin only
-- `/settings/*` - Admin only
+- `/admin/settings/*` - Admin only
+- `/transactions/*` - Admin and Bookkeeper only (except viewing)
 - `/transactions/expense` - Admin and Bookkeeper only
 - `/transactions/fund-transfer` - Admin and Bookkeeper only
+- `/login` - Public (redirects if authenticated)
+- `/signup` - Public (redirects if authenticated)
+- All other routes - Authenticated users only
 
 ### Donor Privacy
 - Viewer role cannot see donor names in transaction history
@@ -336,9 +460,12 @@ View real-time financial metrics:
 - `PROJECT_SUMMARY.md` - Complete feature list and implementation details
 - `DATABASE_SCHEMA.md` - Database structure and relationships
 - `DOUBLE_ENTRY_GUIDE.md` - Accounting principles explained
+- `AUTHENTICATION_GUIDE.md` - Login and authentication setup
+- `SIGNUP_SYSTEM_GUIDE.md` - User registration system details
 - `INDEX.md` - Documentation index
 - `INSTALLATION.md` - Detailed setup instructions
 - `QUICKSTART.md` - 5-minute quick start guide
+- `manuals/` - User manuals for each feature
 - `.cursorrules` - Development guidelines
 
 ## 🧪 Troubleshooting
@@ -362,8 +489,9 @@ Create budgets using the `upsertBudget()` server action or directly in the budge
 
 ## 🎯 Completed Features
 
+### Accounting & Transactions
 - ✅ Complete double-entry accounting system
-- ✅ Dashboard with charts and metrics
+- ✅ Dashboard with charts, YTD metrics, and fund activity
 - ✅ Record Giving with donor tracking
 - ✅ Record Expenses with payment types (cash/credit)
 - ✅ In-Kind Donation tracking (non-cash contributions)
@@ -371,21 +499,66 @@ Create budgets using the `upsertBudget()` server action or directly in the budge
 - ✅ Import Online Giving (batch donations with fees)
 - ✅ Fund Transfers (between funds)
 - ✅ Account Transfers (between bank accounts)
+- ✅ Weekly Deposit Form (batch entry for weekly giving)
+- ✅ Transaction voiding (safe, non-destructive)
+- ✅ Duplicate transaction detection
+
+### Reports & Analytics
 - ✅ Balance Sheet with fund balances
 - ✅ Income Statement (monthly and quarterly)
+- ✅ Quarterly Income Statement (Q1-Q4 comparison)
+- ✅ Fund Summary Report (beginning/ending balances)
 - ✅ Transaction History with search and void
+- ✅ Budget variance reports with progress bars
+- ✅ YTD metrics on dashboard
+- ✅ 6-month trend charts
+
+### Donor Management
 - ✅ Donor management and tracking
 - ✅ Donor contribution statements (online viewing)
 - ✅ Annual Donor Statements (PDF generation with IRS compliance)
-- ✅ Budget tracking and management
-- ✅ Budget variance reports with progress bars
-- ✅ Role-based access control (Admin, Bookkeeper, Viewer)
-- ✅ Donor privacy protection for Viewer role
-- ✅ Route protection with middleware
-- ✅ Comprehensive audit trail
 - ✅ In-kind donations properly labeled on statements
-- ✅ Duplicate transaction detection
-- ✅ Weekly deposit form with batch entry
+- ✅ Donor privacy protection for Viewer role
+
+### Budgeting
+- ✅ Budget tracking and management
+- ✅ Budget Planner interface
+- ✅ Budget variance reports with progress bars
+- ✅ Color-coded spending alerts
+- ✅ Multi-year budget support
+
+### Authentication & Users
+- ✅ Email/Password login system
+- ✅ User signup with email confirmation support
+- ✅ User profiles with automatic creation
+- ✅ Session management
+- ✅ Protected routes with middleware
+
+### Admin Features
+- ✅ Fund Management (create, edit, view)
+- ✅ Chart of Accounts Management (full editor)
+- ✅ User Management (role assignment)
+- ✅ Transaction Management (view all transactions)
+- ✅ Budget Planner (create/edit budgets)
+- ✅ Fund-to-Equity Mapping (link funds to net assets accounts)
+- ✅ System Diagnostics (debug tools)
+
+### Security
+- ✅ Role-based access control (Admin, Bookkeeper, Viewer)
+- ✅ Route protection with middleware
+- ✅ Row Level Security (RLS) on all tables
+- ✅ Donor privacy protection for Viewer role
+- ✅ Automatic role assignment (optional trigger)
+- ✅ Comprehensive audit trail
+
+### Technical
+- ✅ TypeScript throughout (100% typed)
+- ✅ Server Actions for mutations
+- ✅ Responsive design (mobile and desktop)
+- ✅ PDF generation (jsPDF)
+- ✅ CSV import (PapaParse)
+- ✅ Error handling and validation
+- ✅ Modern UI with Tailwind CSS
 
 ## 🚧 Future Enhancements
 
@@ -402,13 +575,16 @@ Create budgets using the `upsertBudget()` server action or directly in the budge
 
 ## 🏆 What Makes This Special
 
-1. **True Fund Accounting**: Designed specifically for non-profits and churches
-2. **Complete Audit Trail**: Every change tracked and timestamped
-3. **Donor Privacy**: Built-in privacy controls for sensitive information
-4. **Budget Management**: Visual progress tracking for financial planning
-5. **Role-Based Security**: Flexible permissions for different users
-6. **Modern Stack**: Next.js 14, Supabase, TypeScript, Tailwind CSS
-7. **Production Ready**: Full error handling, validation, and security
+1. **True Fund Accounting**: Designed specifically for non-profits and churches with restricted/unrestricted fund tracking
+2. **Complete Audit Trail**: Every change tracked and timestamped with transaction voiding (no deletions)
+3. **Donor Privacy**: Built-in privacy controls for sensitive information with role-based visibility
+4. **Budget Management**: Visual progress tracking with color-coded alerts for financial planning
+5. **Role-Based Security**: Flexible permissions (Admin, Bookkeeper, Viewer) with middleware and RLS protection
+6. **Comprehensive Reporting**: 8+ financial reports including PDF generation for donor statements
+7. **Batch Processing**: Weekly deposit forms, CSV imports for bank statements and online giving
+8. **Admin Tools**: Full management interfaces for funds, accounts, users, budgets, and system diagnostics
+9. **Modern Stack**: Next.js 14, Supabase, TypeScript, Tailwind CSS with server actions
+10. **Production Ready**: Full error handling, validation, security, and comprehensive documentation
 
 ## 📞 Support
 

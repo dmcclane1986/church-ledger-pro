@@ -5,18 +5,11 @@ import { getAnnualGiving, type AnnualGivingData } from '@/app/actions/reports'
 import { fetchDonors, type Donor } from '@/app/actions/donors'
 import { useEffect } from 'react'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 interface AnnualStatementGeneratorProps {
   churchName?: string
   churchAddress?: string
-}
-
-// Extend jsPDF type for autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
-  }
 }
 
 export default function AnnualStatementGenerator({
@@ -140,7 +133,7 @@ export default function AnnualStatementGenerator({
         formatCurrency(gift.amount),
       ])
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPosition,
         head: [['Date', 'Fund/Account', 'Check/Ref #', 'Amount']],
         body: tableData,
@@ -202,7 +195,7 @@ export default function AnnualStatementGenerator({
         gift.fund_name,
       ])
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPosition,
         head: [['Date', 'Description', 'Fund']],
         body: inKindTableData,

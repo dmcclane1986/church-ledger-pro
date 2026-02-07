@@ -11,18 +11,6 @@ export default function QuarterlyIncomePage() {
         <p className="mt-2 text-sm text-gray-600">
           View income and expenses broken down by quarter
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → All Reports
-          </Link>
-          <Link href="/reports/income-statement" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Monthly Income Statement
-          </Link>
-        </div>
       </div>
 
       <QuarterlyIncomeStatementReport />

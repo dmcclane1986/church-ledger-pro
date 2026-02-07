@@ -67,14 +67,6 @@ export default async function DiagnosticsPage() {
         <p className="mt-2 text-sm text-gray-600">
           Debug information for balance sheet issues
         </p>
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/reports/balance-sheet" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Balance Sheet
-          </Link>
-        </div>
       </div>
 
       <div className="space-y-6">

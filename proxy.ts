@@ -103,10 +103,17 @@ export default async function proxy(request: NextRequest) {
       }
     }
 
-    // Protect transaction entry routes - Admin and Bookkeeper only
+    // Protect all transaction routes - Admin and Bookkeeper only (Viewers cannot access)
+    if (request.nextUrl.pathname.startsWith('/transactions')) {
+      if (userRole !== 'admin' && userRole !== 'bookkeeper') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url))
+      }
+    }
+
+    // Protect donor statement routes - Admin and Bookkeeper only (Viewers cannot access)
     if (
-      request.nextUrl.pathname.startsWith('/transactions') &&
-      request.nextUrl.pathname !== '/transactions' // Allow viewing transactions page
+      request.nextUrl.pathname.startsWith('/reports/donor-statements') ||
+      request.nextUrl.pathname.startsWith('/reports/annual-statements')
     ) {
       if (userRole !== 'admin' && userRole !== 'bookkeeper') {
         return NextResponse.redirect(new URL('/unauthorized', request.url))

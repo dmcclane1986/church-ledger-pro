@@ -9,18 +9,6 @@ export default function TransactionHistoryPage() {
         <p className="text-gray-600 mt-2">
           View, search, and manage all journal entries
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Dashboard
-          </Link>
-          <Link href="/transactions" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Transactions
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Reports
-          </Link>
-        </div>
       </div>
       
       <TransactionHistory />

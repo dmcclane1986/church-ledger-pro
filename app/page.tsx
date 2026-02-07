@@ -7,6 +7,7 @@ import {
   fetchYTDFundBalances
 } from '@/app/actions/reports'
 import DashboardChart from '@/components/DashboardChart'
+import { canEditTransactions } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,8 @@ function formatCurrency(value: number) {
 }
 
 export default async function Home() {
+  const canEdit = await canEditTransactions()
+  
   // Get current month and year
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -120,18 +123,6 @@ export default async function Home() {
         <p className="text-gray-600 mt-1">
           Financial overview for {now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         </p>
-        {/* Navigation Links */}
-        <div className="mt-4 flex gap-4 flex-wrap">
-          <Link href="/transactions" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Transactions
-          </Link>
-          <Link href="/reports" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            → Reports
-          </Link>
-          <Link href="/donors/new" className="text-green-600 hover:text-green-800 font-medium text-sm">
-            + Add New Donor
-          </Link>
-        </div>
       </div>
 
       {/* Error Messages */}
@@ -152,28 +143,32 @@ export default async function Home() {
       {/* Quick Actions */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid md:grid-cols-4 gap-4">
-          <Link
-            href="/transactions"
-            className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
-          >
-            <div className="text-3xl mb-2">📝</div>
-            <div className="font-medium text-gray-900">Record Giving</div>
-          </Link>
-          <Link
-            href="/transactions/expense"
-            className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
-          >
-            <div className="text-3xl mb-2">💳</div>
-            <div className="font-medium text-gray-900">Record Expense</div>
-          </Link>
-          <Link
-            href="/transactions/fund-transfer"
-            className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
-          >
-            <div className="text-3xl mb-2">🔄</div>
-            <div className="font-medium text-gray-900">Fund Transfer</div>
-          </Link>
+        <div className={`grid gap-4 ${canEdit ? 'md:grid-cols-4' : 'md:grid-cols-1'}`}>
+          {canEdit && (
+            <>
+              <Link
+                href="/transactions"
+                className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
+              >
+                <div className="text-3xl mb-2">📝</div>
+                <div className="font-medium text-gray-900">Record Giving</div>
+              </Link>
+              <Link
+                href="/transactions/expense"
+                className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
+              >
+                <div className="text-3xl mb-2">💳</div>
+                <div className="font-medium text-gray-900">Record Expense</div>
+              </Link>
+              <Link
+                href="/transactions/fund-transfer"
+                className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
+              >
+                <div className="text-3xl mb-2">🔄</div>
+                <div className="font-medium text-gray-900">Fund Transfer</div>
+              </Link>
+            </>
+          )}
           <Link
             href="/reports"
             className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
