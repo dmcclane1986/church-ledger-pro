@@ -14,6 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
+      bills: {
+        Row: {
+          id: string
+          vendor_id: string
+          fund_id: string
+          expense_account_id: string
+          liability_account_id: string
+          journal_entry_id: string | null
+          bill_number: string | null
+          description: string
+          invoice_date: string
+          due_date: string
+          amount: number
+          amount_paid: number
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          vendor_id: string
+          fund_id: string
+          expense_account_id: string
+          liability_account_id: string
+          journal_entry_id?: string | null
+          bill_number?: string | null
+          description: string
+          invoice_date: string
+          due_date: string
+          amount: number
+          amount_paid?: number
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          vendor_id?: string
+          fund_id?: string
+          expense_account_id?: string
+          liability_account_id?: string
+          journal_entry_id?: string | null
+          bill_number?: string | null
+          description?: string
+          invoice_date?: string
+          due_date?: string
+          amount?: number
+          amount_paid?: number
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_liability_account_id_fkey"
+            columns: ["liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_payments: {
+        Row: {
+          id: string
+          bill_id: string
+          journal_entry_id: string
+          payment_date: string
+          amount: number
+          payment_method: string | null
+          reference_number: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          bill_id: string
+          journal_entry_id: string
+          payment_date: string
+          amount: number
+          payment_method?: string | null
+          reference_number?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          bill_id?: string
+          journal_entry_id?: string
+          payment_date?: string
+          amount?: number
+          payment_method?: string | null
+          reference_number?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chart_of_accounts: {
         Row: {
           account_number: number
@@ -315,6 +462,45 @@ export type Database = {
           created_at?: string
           updated_at?: string
           created_by?: string | null
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          id: string
+          name: string
+          contact_name: string | null
+          email: string | null
+          phone: string | null
+          address: string | null
+          notes: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          contact_name?: string | null
+          email?: string | null
+          phone?: string | null
+          address?: string | null
+          notes?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          contact_name?: string | null
+          email?: string | null
+          phone?: string | null
+          address?: string | null
+          notes?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

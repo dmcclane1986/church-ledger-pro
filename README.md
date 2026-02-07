@@ -24,6 +24,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Account Transfers** - Move money between different bank accounts  
 ✅ **Weekly Deposit Form** - Batch entry for weekly giving with multiple donors and funds  
 ✅ **Bank Reconciliation** - Match bank statements with ledger, track cleared transactions  
+✅ **Accounts Payable** - Track bills and vendor payments with proper accrual accounting  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 

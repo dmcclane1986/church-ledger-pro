@@ -117,6 +117,13 @@ export default async function RootLayout({
                   )}
 
                   <a
+                    href="/ap"
+                    className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Accounts Payable
+                  </a>
+
+                  <a
                     href="/reports"
                     className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                   >
