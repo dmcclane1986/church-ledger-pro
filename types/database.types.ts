@@ -391,6 +391,167 @@ export type Database = {
         }
         Relationships: []
       }
+      recurring_templates: {
+        Row: {
+          id: string
+          template_name: string
+          description: string
+          frequency: Database["public"]["Enums"]["recurring_frequency"]
+          start_date: string
+          end_date: string | null
+          last_run_date: string | null
+          next_run_date: string
+          fund_id: string
+          amount: number
+          reference_number_prefix: string | null
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          template_name: string
+          description: string
+          frequency: Database["public"]["Enums"]["recurring_frequency"]
+          start_date: string
+          end_date?: string | null
+          last_run_date?: string | null
+          next_run_date: string
+          fund_id: string
+          amount: number
+          reference_number_prefix?: string | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          template_name?: string
+          description?: string
+          frequency?: Database["public"]["Enums"]["recurring_frequency"]
+          start_date?: string
+          end_date?: string | null
+          last_run_date?: string | null
+          next_run_date?: string
+          fund_id?: string
+          amount?: number
+          reference_number_prefix?: string | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_templates_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_template_lines: {
+        Row: {
+          id: string
+          template_id: string
+          account_id: string
+          debit: number
+          credit: number
+          memo: string | null
+          line_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          account_id: string
+          debit?: number
+          credit?: number
+          memo?: string | null
+          line_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          template_id?: string
+          account_id?: string
+          debit?: number
+          credit?: number
+          memo?: string | null
+          line_order?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_template_lines_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_template_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_history: {
+        Row: {
+          id: string
+          template_id: string
+          journal_entry_id: string
+          executed_date: string
+          amount: number
+          status: string
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          journal_entry_id: string
+          executed_date: string
+          amount: number
+          status?: string
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          template_id?: string
+          journal_entry_id?: string
+          executed_date?: string
+          amount?: number
+          status?: string
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_history_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_history_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reconciliations: {
         Row: {
           id: string
@@ -530,6 +691,7 @@ export type Database = {
     }
     Enums: {
       account_type: "Asset" | "Liability" | "Equity" | "Income" | "Expense"
+      recurring_frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "semiannually" | "yearly"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -658,6 +820,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["Asset", "Liability", "Equity", "Income", "Expense"],
+      recurring_frequency: ["weekly", "biweekly", "monthly", "quarterly", "semiannually", "yearly"],
     },
   },
 } as const

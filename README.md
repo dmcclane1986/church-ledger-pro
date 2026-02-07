@@ -25,6 +25,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **Weekly Deposit Form** - Batch entry for weekly giving with multiple donors and funds  
 ✅ **Bank Reconciliation** - Match bank statements with ledger, track cleared transactions  
 ✅ **Accounts Payable** - Track bills and vendor payments with proper accrual accounting  
+✅ **Recurring Transactions** - Automate regular transactions with scheduled templates  
 ✅ **Donor Management** - Track donors with envelope numbers and contact info  
 ✅ **Quick Add Donor** - Add donors on-the-fly during transaction entry
 
@@ -66,6 +67,7 @@ A complete, production-ready accounting solution designed specifically for churc
 ✅ **User Management** - Assign and manage user roles (Admin, Bookkeeper, Viewer)  
 ✅ **Transaction Management** - View and manage all transactions  
 ✅ **Budget Planner** - Create and manage annual budgets by account  
+✅ **Recurring Transaction Manager** - Create, pause, and process automated recurring transactions  
 ✅ **Fund-to-Equity Mapping** - Link funds to net assets accounts for proper balance sheet reporting  
 ✅ **System Diagnostics** - Debug tools for balance verification and system health checks
 
@@ -161,6 +163,26 @@ Match your bank statement with your ledger:
 - Complete audit trail of all reconciliations
 - See [Bank Reconciliation Documentation](docs/BANK_RECONCILIATION.md) for details
 
+### 10. Accounts Payable
+Track bills and vendor payments:
+- Record bills when received (increases Accounts Payable, does not affect cash yet)
+- View total amount owed at a glance
+- Color-coded bill status (Red = overdue, Yellow = due soon, Blue = unpaid, Green = paid)
+- Pay bills when ready (decreases Accounts Payable and Cash)
+- Full vendor management
+- See [Accounts Payable Documentation](docs/ACCOUNTS_PAYABLE.md) for details
+
+### 11. Recurring Transactions
+Automate regular transactions with scheduled templates:
+- Create templates for rent, utilities, payroll, insurance, etc.
+- Set frequency: weekly, bi-weekly, monthly, quarterly, semi-annually, yearly
+- "Process Now" button to run all due transactions
+- Automatic date calculation for next run
+- Pause/resume templates as needed
+- Full execution history tracking
+- Color-coded status indicators (Overdue, Due Today, Due Soon, Active)
+- See [Recurring Transactions Quick Start](RECURRING_QUICK_START.md) for details
+
 ## 👥 User Roles
 
 ### Admin
@@ -221,6 +243,9 @@ Execute these migrations in order in your Supabase SQL Editor:
 9. **User Profiles**: `migrations/add_profiles_table.sql`
 10. **Equity/Liability Columns**: `migrations/add_equity_liability_columns.sql`
 11. **Auto-Assign Role**: `migrations/auto_assign_role_trigger.sql` (optional, for automatic role assignment)
+12. **Bank Reconciliation**: `supabase/migrations/20260207000000_add_bank_reconciliation.sql`
+13. **Accounts Payable**: `supabase/migrations/20260207000001_create_accounts_payable_system.sql`
+14. **Recurring Transactions**: `supabase/migrations/20260207000002_create_recurring_transactions.sql`
 
 ### 4. Create Your First User
 
