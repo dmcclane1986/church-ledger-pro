@@ -12,7 +12,7 @@ export const metadata = {
 export default async function BudgetPlannerPage({
   searchParams,
 }: {
-  searchParams: { year?: string }
+  searchParams: Promise<{ year?: string }>
 }) {
   const supabase = await createServerClient()
   
@@ -33,8 +33,9 @@ export default async function BudgetPlannerPage({
   }
 
   // Get fiscal year from query params or default to next year
+  const params = await searchParams
   const currentYear = new Date().getFullYear()
-  const planningYear = searchParams.year ? parseInt(searchParams.year) : currentYear + 1
+  const planningYear = params.year ? parseInt(params.year) : currentYear + 1
   const previousYear = planningYear - 1
 
   // Fetch historical actuals for previous year
