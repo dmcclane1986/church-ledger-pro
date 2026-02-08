@@ -842,10 +842,12 @@ export interface FundSummaryData {
 export async function fetchFundSummary(
   startDate: string,
   endDate: string
-): Promise<{ success: boolean; data?: FundSummaryData[]; error?: string }> {
+): Promise<{ success: boolean; data?: FundSummaryData[]; error?: string; debug?: string[] }> {
   const supabase = await createServerClient()
+  const debugLog: string[] = []
 
   try {
+    debugLog.push(`Start date: ${startDate}, End date: ${endDate}`)
     console.log('[fetchFundSummary] Start date:', startDate, 'End date:', endDate)
     // Get all funds
     const { data: funds, error: fundsError } = await (supabase as any)
@@ -856,12 +858,16 @@ export async function fetchFundSummary(
 
     if (fundsError) {
       console.error('Error fetching funds:', fundsError)
-      return { success: false, error: fundsError.message }
+      debugLog.push(`ERROR fetching funds: ${fundsError.message}`)
+      return { success: false, error: fundsError.message, debug: debugLog }
     }
 
     if (!funds || funds.length === 0) {
-      return { success: true, data: [] }
+      debugLog.push('No funds found')
+      return { success: true, data: [], debug: debugLog }
     }
+    
+    debugLog.push(`Found ${funds.length} funds`)
 
     // Get all ledger lines with journal entry dates
     const { data: ledgerLines, error: ledgerError } = await (supabase as any)
@@ -929,6 +935,7 @@ export async function fetchFundSummary(
       // Filter ledger lines for this fund
       const fundLines = (ledgerLines || []).filter((line: any) => line.fund_id === fund.id)
       
+      debugLog.push(`\nProcessing ${fund.name}: ${fundLines.length} ledger lines`)
       console.log(`[fetchFundSummary] Processing fund: ${fund.name}, Lines count: ${fundLines.length}`)
 
       // Track which accounts have activity in this fund during the period
@@ -988,24 +995,28 @@ export async function fetchFundSummary(
           if (account?.account_type === 'Asset') {
             const contribution = line.debit - line.credit
             if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Asset) D:${line.debit} C:${line.credit} = +${contribution}`)
               console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Asset), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
             }
             beginningBalance += contribution
           } else if (account?.account_type === 'Liability') {
             const contribution = -(line.credit - line.debit)
             if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Liability) D:${line.debit} C:${line.credit} = +${contribution}`)
               console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Liability), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
             }
             beginningBalance += contribution
           } else if (account?.account_type === 'Income') {
             const contribution = line.credit - line.debit
             if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Income) D:${line.debit} C:${line.credit} = +${contribution}`)
               console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Income), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
             }
             beginningBalance += contribution
           } else if (account?.account_type === 'Expense') {
             const contribution = -(line.debit - line.credit)
             if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Expense) D:${line.debit} C:${line.credit} = +${contribution}`)
               console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Expense), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
             }
             beginningBalance += contribution
@@ -1036,6 +1047,8 @@ export async function fetchFundSummary(
 
       // Ending balance is the cumulative balance through the end date
       endingBalance = balanceThroughEndDate
+      
+      debugLog.push(`  RESULT: BB=$${beginningBalance.toFixed(2)} Income=$${totalIncome.toFixed(2)} Exp=$${totalExpenses.toFixed(2)} End=$${endingBalance.toFixed(2)}`)
 
       fundSummaries.push({
         fund_id: fund.id,
@@ -1050,10 +1063,12 @@ export async function fetchFundSummary(
       })
     }
 
-    return { success: true, data: fundSummaries }
+    debugLog.push(`\n=== FINAL: ${fundSummaries.length} fund summaries created ===`)
+    return { success: true, data: fundSummaries, debug: debugLog }
   } catch (error) {
     console.error('Unexpected error:', error)
-    return { success: false, error: 'An unexpected error occurred' }
+    debugLog.push(`ERROR: ${error}`)
+    return { success: false, error: 'An unexpected error occurred', debug: debugLog }
   }
 }
 

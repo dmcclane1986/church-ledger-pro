@@ -20,6 +20,7 @@ export default function FundSummaryReport() {
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
+  const [serverDebug, setServerDebug] = useState<string[]>([])  
 
   useEffect(() => {
     loadData()
@@ -29,8 +30,14 @@ export default function FundSummaryReport() {
     setLoading(true)
     setError(null)
     setDebugInfo(null)
+    setServerDebug([])
     
     const result = await fetchFundSummary(startDate, endDate)
+    
+    // Capture server debug info
+    if (result.debug) {
+      setServerDebug(result.debug)
+    }
     
     if (result.success && result.data) {
       setData(result.data)
@@ -223,6 +230,33 @@ export default function FundSummaryReport() {
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Always Visible Debug - Will show even if data hasn't loaded */}
+      <div className="bg-red-100 border-2 border-red-500 rounded-lg p-4 mb-6">
+        <h3 className="text-lg font-bold text-red-900 mb-2">🔴 DEBUG MODE ACTIVE</h3>
+        <div className="text-sm text-red-800 space-y-1">
+          <p><strong>Report Period:</strong> {startDate} to {endDate}</p>
+          <p><strong>Data Loaded:</strong> {data.length > 0 ? 'YES' : 'NO'}</p>
+          <p><strong>Funds Count:</strong> {data.length}</p>
+          {data.length > 0 && data.map((fund, idx) => (
+            <div key={idx} className="mt-2 p-2 bg-red-50 rounded">
+              <p className="font-semibold">{fund.fund_name}:</p>
+              <p>Beginning: ${fund.beginning_balance.toFixed(2)}</p>
+              <p>Income: ${fund.total_income.toFixed(2)}</p>
+              <p>Expenses: ${fund.total_expenses.toFixed(2)}</p>
+              <p>Ending: ${fund.ending_balance.toFixed(2)}</p>
+            </div>
+          ))}
+          {serverDebug.length > 0 && (
+            <div className="mt-4 p-2 bg-white rounded border border-red-300">
+              <p className="font-semibold mb-2">Server Debug Log:</p>
+              <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                {serverDebug.join('\n')}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+      
       {/* Date Range Picker */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Period</h2>
