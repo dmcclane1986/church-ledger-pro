@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { transferBetweenAccounts } from '@/app/actions/transactions'
 import type { Database } from '@/types/database.types'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 type Fund = Database['public']['Tables']['funds']['Row']
 type Account = Database['public']['Tables']['chart_of_accounts']['Row']
@@ -21,11 +22,7 @@ export default function AccountTransferForm({
   const [success, setSuccess] = useState<string | null>(null)
 
   // Form state
-  const [date, setDate] = useState(() => {
-    // Default to today's date in YYYY-MM-DD format
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [fundId, setFundId] = useState(funds[0]?.id || '')
   const [sourceAccountId, setSourceAccountId] = useState(accounts[0]?.id || '')
   const [destinationAccountId, setDestinationAccountId] = useState(accounts[1]?.id || accounts[0]?.id || '')

@@ -5,6 +5,7 @@ import { recordWeeklyDeposit } from '@/app/actions/transactions'
 import { fetchDonors, createDonor, type Donor } from '@/app/actions/donors'
 import type { Database } from '@/types/database.types'
 import { generateDepositReceiptPDF } from '@/lib/pdf/depositReceipt'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 type Fund = Database['public']['Tables']['funds']['Row']
 type Account = Database['public']['Tables']['chart_of_accounts']['Row']
@@ -51,10 +52,7 @@ export default function WeeklyDepositForm({
   const [donors, setDonors] = useState<Donor[]>([])
 
   // Form state
-  const [date, setDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [description, setDescription] = useState('Weekly deposit')
 
   // Cash & Coin Counter (value-based, not count-based)

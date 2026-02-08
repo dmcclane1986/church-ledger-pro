@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect } from 'react'
 import { recordWeeklyGiving } from '@/app/actions/transactions'
 import { fetchDonors, createDonor, type Donor } from '@/app/actions/donors'
 import type { Database } from '@/types/database.types'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 type Fund = Database['public']['Tables']['funds']['Row']
 type Account = Database['public']['Tables']['chart_of_accounts']['Row']
@@ -31,11 +32,7 @@ export default function RecordGivingForm({
   const [newDonorName, setNewDonorName] = useState('')
 
   // Form state
-  const [date, setDate] = useState(() => {
-    // Default to today's date in YYYY-MM-DD format
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [fundId, setFundId] = useState(funds[0]?.id || '')
   const [incomeAccountId, setIncomeAccountId] = useState(incomeAccounts[0]?.id || '')
   const [amount, setAmount] = useState('')

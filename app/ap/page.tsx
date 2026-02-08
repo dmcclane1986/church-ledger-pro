@@ -14,6 +14,7 @@ import {
   getFunds,
 } from '@/app/actions/ap_actions'
 import { getCheckingAccounts } from '@/app/actions/transactions'
+import { getTodayLocalDate, addDaysLocal } from '@/lib/utils/date'
 
 interface Bill {
   id: string
@@ -354,7 +355,7 @@ export default function AccountsPayablePage() {
 function PayBillModal({ bill, onClose, onSuccess, onError }: any) {
   const [amount, setAmount] = useState('')
   const [bankAccountId, setBankAccountId] = useState('')
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState(getTodayLocalDate())
   const [paymentMethod, setPaymentMethod] = useState('Check')
   const [referenceNumber, setReferenceNumber] = useState('')
   const [notes, setNotes] = useState('')
@@ -590,7 +591,7 @@ function CreateBillModal({ onClose, onSuccess, onError }: any) {
   const [liabilityAccountId, setLiabilityAccountId] = useState('')
   const [billNumber, setBillNumber] = useState('')
   const [description, setDescription] = useState('')
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
+  const [invoiceDate, setInvoiceDate] = useState(getTodayLocalDate())
   const [dueDate, setDueDate] = useState('')
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
@@ -604,9 +605,7 @@ function CreateBillModal({ onClose, onSuccess, onError }: any) {
   useEffect(() => {
     loadFormData()
     // Set due date to 30 days from invoice date by default
-    const thirtyDaysLater = new Date()
-    thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30)
-    setDueDate(thirtyDaysLater.toISOString().split('T')[0])
+    setDueDate(addDaysLocal(new Date(), 30))
   }, [])
 
   const loadFormData = async () => {
@@ -692,9 +691,7 @@ function CreateBillModal({ onClose, onSuccess, onError }: any) {
   const handleInvoiceDateChange = (date: string) => {
     setInvoiceDate(date)
     if (date) {
-      const invoiceDate = new Date(date)
-      invoiceDate.setDate(invoiceDate.getDate() + 30)
-      setDueDate(invoiceDate.toISOString().split('T')[0])
+      setDueDate(addDaysLocal(new Date(date), 30))
     }
   }
 

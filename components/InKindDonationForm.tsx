@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect } from 'react'
 import { recordInKindDonation } from '@/app/actions/transactions'
 import { fetchDonors, createDonor, type Donor } from '@/app/actions/donors'
 import type { Database } from '@/types/database.types'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 type Fund = Database['public']['Tables']['funds']['Row']
 type Account = Database['public']['Tables']['chart_of_accounts']['Row']
@@ -33,10 +34,7 @@ export default function InKindDonationForm({
   const [newDonorName, setNewDonorName] = useState('')
 
   // Form state
-  const [date, setDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [fundId, setFundId] = useState(funds[0]?.id || '')
   const [itemDescription, setItemDescription] = useState('')
   const [estimatedValue, setEstimatedValue] = useState('')

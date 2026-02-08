@@ -6,6 +6,7 @@ import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/sett
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { addPDFHeader, formatCurrency as pdfFormatCurrency, addPDFFooter, defaultTableStyles } from '@/lib/pdf/report-generator'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 export default function FundSummaryReport() {
   const [startDate, setStartDate] = useState(() => {
@@ -13,10 +14,7 @@ export default function FundSummaryReport() {
     const now = new Date()
     return `${now.getFullYear()}-01-01`
   })
-  const [endDate, setEndDate] = useState(() => {
-    // Default to today
-    return new Date().toISOString().split('T')[0]
-  })
+  const [endDate, setEndDate] = useState(getTodayLocalDate())
   const [data, setData] = useState<FundSummaryData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

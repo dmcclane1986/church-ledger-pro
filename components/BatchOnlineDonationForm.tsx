@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { recordBatchOnlineDonation } from '@/app/actions/transactions'
 import type { Database } from '@/types/database.types'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 type Fund = Database['public']['Tables']['funds']['Row']
 type Account = Database['public']['Tables']['chart_of_accounts']['Row']
@@ -44,10 +45,7 @@ export default function BatchOnlineDonationForm({
   } | null>(null)
 
   // Form state
-  const [date, setDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [netDeposit, setNetDeposit] = useState('')
   const [processingFees, setProcessingFees] = useState('')
   const [description, setDescription] = useState('Online donation batch')

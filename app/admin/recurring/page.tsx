@@ -12,6 +12,7 @@ import {
   getAccounts,
   getFunds,
 } from '@/app/actions/recurring'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 interface Template {
   id: string
@@ -553,7 +554,7 @@ function CreateTemplateModal({ accounts, funds, onClose, onCreate, creating }: C
   const [templateName, setTemplateName] = useState('')
   const [description, setDescription] = useState('')
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannually' | 'yearly'>('monthly')
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [startDate, setStartDate] = useState(getTodayLocalDate())
   const [endDate, setEndDate] = useState('')
   const [fundId, setFundId] = useState('')
   const [referencePrefix, setReferencePrefix] = useState('')

@@ -11,6 +11,7 @@ import {
   getReconciliationHistory,
 } from '@/app/actions/reconciliation'
 import { getCheckingAccounts } from '@/app/actions/transactions'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 interface Transaction {
   id: string
@@ -41,9 +42,7 @@ export default function BankReconciliationPage() {
   
   // Reconciliation state
   const [statementBalance, setStatementBalance] = useState<string>('')
-  const [statementDate, setStatementDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  )
+  const [statementDate, setStatementDate] = useState<string>(getTodayLocalDate())
   const [currentReconciliation, setCurrentReconciliation] = useState<any>(null)
   const [clearedBalance, setClearedBalance] = useState<number>(0)
   const [reconciliationHistory, setReconciliationHistory] = useState<any[]>([])

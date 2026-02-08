@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOpeningBalanceEntry } from '@/app/actions/opening-balance'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 interface Fund {
   id: string
@@ -33,10 +34,7 @@ export default function OpeningBalanceForm({
   const [success, setSuccess] = useState(false)
 
   // Form state
-  const [date, setDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [date, setDate] = useState(getTodayLocalDate())
   const [assetAccountId, setAssetAccountId] = useState('')
   const [equityAccountId, setEquityAccountId] = useState('')
   const [fundId, setFundId] = useState('')

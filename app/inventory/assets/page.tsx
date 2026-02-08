@@ -10,6 +10,7 @@ import {
   createAsset,
 } from '@/app/actions/assets'
 import { getAccounts, getFunds } from '@/app/actions/recurring'
+import { getTodayLocalDate } from '@/lib/utils/date'
 
 interface Asset {
   id: string
@@ -465,11 +466,11 @@ function CreateAssetModal({ accounts, funds, onClose, onCreate }: CreateAssetMod
   const [serialNumber, setSerialNumber] = useState('')
   const [assetTag, setAssetTag] = useState('')
   const [category, setCategory] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
+  const [purchaseDate, setPurchaseDate] = useState(getTodayLocalDate())
   const [purchasePrice, setPurchasePrice] = useState('')
   const [estimatedLifeYears, setEstimatedLifeYears] = useState('')
   const [salvageValue, setSalvageValue] = useState('')
-  const [depreciationStartDate, setDepreciationStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [depreciationStartDate, setDepreciationStartDate] = useState(getTodayLocalDate())
   const [fundId, setFundId] = useState('')
   const [assetAccountId, setAssetAccountId] = useState('')
   const [accumDeprecAccountId, setAccumDeprecAccountId] = useState('')
