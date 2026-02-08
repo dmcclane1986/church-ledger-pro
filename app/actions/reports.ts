@@ -983,25 +983,30 @@ export async function fetchFundSummary(
 
         // Calculate beginning balance (everything before start date)
         if (lineDate < start) {
-          const contribution = {
-            'Asset': line.debit - line.credit,
-            'Liability': -(line.credit - line.debit),
-            'Income': line.credit - line.debit,
-            'Expense': -(line.debit - line.credit)
-          }[account?.account_type] || 0
-          
-          if (contribution !== 0) {
-            console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (${account?.account_type}), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
-          }
-          
           if (account?.account_type === 'Asset') {
-            beginningBalance += line.debit - line.credit
+            const contribution = line.debit - line.credit
+            if (contribution !== 0) {
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Asset), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
           } else if (account?.account_type === 'Liability') {
-            beginningBalance -= line.credit - line.debit
+            const contribution = -(line.credit - line.debit)
+            if (contribution !== 0) {
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Liability), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
           } else if (account?.account_type === 'Income') {
-            beginningBalance += line.credit - line.debit
+            const contribution = line.credit - line.debit
+            if (contribution !== 0) {
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Income), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
           } else if (account?.account_type === 'Expense') {
-            beginningBalance -= line.debit - line.credit
+            const contribution = -(line.debit - line.credit)
+            if (contribution !== 0) {
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Expense), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
           }
         }
       }
