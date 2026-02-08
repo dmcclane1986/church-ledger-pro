@@ -71,7 +71,7 @@ export async function createRecurringTemplate(input: CreateRecurringTemplateInpu
     const nextRunDate = calculateNextRunDate(startDate, input.frequency)
 
     // Create template
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await (supabase as any)
       .from('recurring_templates')
       .insert({
         template_name: input.templateName,
@@ -104,7 +104,7 @@ export async function createRecurringTemplate(input: CreateRecurringTemplateInpu
       line_order: index,
     }))
 
-    const { error: linesError } = await supabase
+    const { error: linesError } = await (supabase as any)
       .from('recurring_template_lines')
       .insert(ledgerLinesData)
 
@@ -162,7 +162,7 @@ export async function processRecurringTransactions(processDate?: string) {
 
   try {
     // Get all active templates where next_run_date <= today
-    const { data: templates, error: templatesError } = await supabase
+    const { data: templates, error: templatesError } = await (supabase as any)
       .from('recurring_templates')
       .select(`
         *,
@@ -198,7 +198,7 @@ export async function processRecurringTransactions(processDate?: string) {
         // Check if end_date has passed
         if (template.end_date && template.end_date < today) {
           // Deactivate template
-          await supabase
+          await (supabase as any)
             .from('recurring_templates')
             .update({ is_active: false })
             .eq('id', template.id)
@@ -216,7 +216,7 @@ export async function processRecurringTransactions(processDate?: string) {
           ? `${template.reference_number_prefix}${new Date(today).toISOString().slice(0, 7)}`
           : null
 
-        const { data: journalEntry, error: journalError } = await supabase
+        const { data: journalEntry, error: journalError } = await (supabase as any)
           .from('journal_entries')
           .insert({
             entry_date: today,
@@ -236,7 +236,7 @@ export async function processRecurringTransactions(processDate?: string) {
           })
           
           // Record failure in history
-          await supabase.from('recurring_history').insert({
+          await (supabase as any).from('recurring_history').insert({
             template_id: template.id,
             journal_entry_id: '00000000-0000-0000-0000-000000000000', // Placeholder
             executed_date: today,
@@ -258,7 +258,7 @@ export async function processRecurringTransactions(processDate?: string) {
           memo: line.memo,
         }))
 
-        const { error: ledgerError } = await supabase
+        const { error: ledgerError } = await (supabase as any)
           .from('ledger_lines')
           .insert(ledgerLines)
 
@@ -274,7 +274,7 @@ export async function processRecurringTransactions(processDate?: string) {
           })
           
           // Record failure in history
-          await supabase.from('recurring_history').insert({
+          await (supabase as any).from('recurring_history').insert({
             template_id: template.id,
             journal_entry_id: journalEntry.id,
             executed_date: today,
@@ -291,7 +291,7 @@ export async function processRecurringTransactions(processDate?: string) {
         const nextRunDate = calculateNextRunDate(currentRunDate, template.frequency)
 
         // Update template
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('recurring_templates')
           .update({
             last_run_date: today,
@@ -305,7 +305,7 @@ export async function processRecurringTransactions(processDate?: string) {
         }
 
         // Record success in history
-        await supabase.from('recurring_history').insert({
+        await (supabase as any).from('recurring_history').insert({
           template_id: template.id,
           journal_entry_id: journalEntry.id,
           executed_date: today,
@@ -403,7 +403,7 @@ export async function getRecurringTemplateById(templateId: string) {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('recurring_templates')
       .select(`
         *,
@@ -456,7 +456,7 @@ export async function toggleTemplateActive(templateId: string, isActive: boolean
   const supabase = await createServerClient()
 
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('recurring_templates')
       .update({ is_active: isActive })
       .eq('id', templateId)
@@ -482,7 +482,7 @@ export async function deleteRecurringTemplate(templateId: string) {
 
   try {
     // Delete template (cascade will delete lines and history)
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('recurring_templates')
       .delete()
       .eq('id', templateId)
@@ -552,7 +552,7 @@ export async function getDueRecurringCount() {
   const today = new Date().toISOString().split('T')[0]
 
   try {
-    const { data, error, count } = await supabase
+    const { data, error, count } = await (supabase as any)
       .from('recurring_templates')
       .select('id', { count: 'exact', head: true })
       .eq('is_active', true)
@@ -577,7 +577,7 @@ export async function getAccounts() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id, account_number, name, account_type')
       .eq('is_active', true)
@@ -602,7 +602,7 @@ export async function getFunds() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('funds')
       .select('id, name, is_restricted')
       .order('name', { ascending: true })

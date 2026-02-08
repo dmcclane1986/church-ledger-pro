@@ -18,8 +18,12 @@ function LogoutButtonContent() {
 }
 
 export default function LogoutButton() {
+  const handleLogout = async () => {
+    await logout()
+  }
+  
   return (
-    <form action={logout}>
+    <form action={handleLogout as any}>
       <LogoutButtonContent />
     </form>
   )

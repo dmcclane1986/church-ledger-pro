@@ -56,7 +56,7 @@ export async function createAsset(input: CreateAssetInput) {
     }
 
     // Create asset
-    const { data: asset, error: assetError } = await supabase
+    const { data: asset, error: assetError } = await (supabase as any)
       .from('fixed_assets')
       .insert({
         asset_name: input.assetName,
@@ -103,7 +103,7 @@ export async function calculateDepreciation(assetId: string, months: number = 1)
   const supabase = await createServerClient()
 
   try {
-    const { data: asset, error } = await supabase
+    const { data: asset, error } = await (supabase as any)
       .from('fixed_assets')
       .select('*')
       .eq('id', assetId)
@@ -178,7 +178,7 @@ export async function recordDepreciation(
 
   try {
     // Get asset details
-    const { data: asset, error: assetError } = await supabase
+    const { data: asset, error: assetError } = await (supabase as any)
       .from('fixed_assets')
       .select('*')
       .eq('id', assetId)
@@ -199,7 +199,7 @@ export async function recordDepreciation(
     }
 
     // Create journal entry
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: depreciationDate,
@@ -234,7 +234,7 @@ export async function recordDepreciation(
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -250,7 +250,7 @@ export async function recordDepreciation(
     const depreciableAmount = asset.purchase_price - asset.salvage_value
     const isFullyDepreciated = newAccumulatedDepreciation >= depreciableAmount
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('fixed_assets')
       .update({
         accumulated_depreciation_amount: newAccumulatedDepreciation,
@@ -271,7 +271,7 @@ export async function recordDepreciation(
     periodEnd.setMonth(periodEnd.getMonth() + months)
     periodEnd.setDate(0) // Last day of period
 
-    const { error: scheduleError } = await supabase
+    const { error: scheduleError } = await (supabase as any)
       .from('depreciation_schedule')
       .insert({
         asset_id: assetId,
@@ -315,7 +315,7 @@ export async function processAllDepreciation(depreciationDate?: string) {
 
   try {
     // Get all active assets that need depreciation
-    const { data: assets, error: assetsError } = await supabase
+    const { data: assets, error: assetsError } = await (supabase as any)
       .from('fixed_assets')
       .select('*')
       .eq('status', 'active')
@@ -374,7 +374,7 @@ export async function processAllDepreciation(depreciationDate?: string) {
             assetId: asset.id,
             assetName: asset.asset_name,
             status: 'failed',
-            error: result.error,
+            error: 'error' in result ? result.error : 'Unknown error',
           })
         }
       } catch (error) {
@@ -416,7 +416,7 @@ export async function disposeAsset(
 
   try {
     // Get asset details
-    const { data: asset, error: assetError } = await supabase
+    const { data: asset, error: assetError } = await (supabase as any)
       .from('fixed_assets')
       .select('*')
       .eq('id', assetId)
@@ -441,7 +441,7 @@ export async function disposeAsset(
       ? `Disposal of ${asset.asset_name} - Gain on sale`
       : `Disposal of ${asset.asset_name} - Loss on sale`
 
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: disposalDate,
@@ -506,7 +506,7 @@ export async function disposeAsset(
       })
     }
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -518,7 +518,7 @@ export async function disposeAsset(
     }
 
     // Update asset status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('fixed_assets')
       .update({
         status: 'disposed',
@@ -592,7 +592,7 @@ export async function getAssetById(assetId: string) {
   const supabase = await createServerClient()
 
   try {
-    const { data: asset, error: assetError } = await supabase
+    const { data: asset, error: assetError } = await (supabase as any)
       .from('fixed_assets')
       .select(`
         *,
@@ -640,7 +640,7 @@ export async function getAssetSummary() {
   const supabase = await createServerClient()
 
   try {
-    const { data: assets, error } = await supabase
+    const { data: assets, error } = await (supabase as any)
       .from('fixed_assets')
       .select('purchase_price, accumulated_depreciation_amount, status')
 
@@ -651,12 +651,12 @@ export async function getAssetSummary() {
 
     const summary = {
       totalAssets: assets?.length || 0,
-      activeAssets: assets?.filter(a => a.status === 'active').length || 0,
-      fullyDepreciatedAssets: assets?.filter(a => a.status === 'fully_depreciated').length || 0,
-      disposedAssets: assets?.filter(a => a.status === 'disposed').length || 0,
-      totalPurchaseValue: assets?.reduce((sum, a) => sum + a.purchase_price, 0) || 0,
-      totalAccumulatedDepreciation: assets?.reduce((sum, a) => sum + a.accumulated_depreciation_amount, 0) || 0,
-      totalBookValue: assets?.reduce((sum, a) => sum + (a.purchase_price - a.accumulated_depreciation_amount), 0) || 0,
+      activeAssets: assets?.filter((a: any) => a.status === 'active').length || 0,
+      fullyDepreciatedAssets: assets?.filter((a: any) => a.status === 'fully_depreciated').length || 0,
+      disposedAssets: assets?.filter((a: any) => a.status === 'disposed').length || 0,
+      totalPurchaseValue: assets?.reduce((sum: number, a: any) => sum + a.purchase_price, 0) || 0,
+      totalAccumulatedDepreciation: assets?.reduce((sum: number, a: any) => sum + a.accumulated_depreciation_amount, 0) || 0,
+      totalBookValue: assets?.reduce((sum: number, a: any) => sum + (a.purchase_price - a.accumulated_depreciation_amount), 0) || 0,
     }
 
     return { success: true, data: summary }
@@ -681,7 +681,7 @@ export async function addMaintenanceLog(
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('asset_maintenance_log')
       .insert({
         asset_id: assetId,

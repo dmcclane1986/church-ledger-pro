@@ -119,9 +119,9 @@ export default function FundSummaryReport() {
           ]],
           ...defaultTableStyles,
           footStyles: {
-            fillColor: [52, 152, 219],
+            fillColor: [52, 152, 219] as [number, number, number],
             textColor: 255,
-            fontStyle: 'bold',
+            fontStyle: 'bold' as const,
           }
         })
         
@@ -158,12 +158,12 @@ export default function FundSummaryReport() {
           headStyles: {
             fillColor: [155, 89, 182],
             textColor: 255,
-            fontStyle: 'bold',
+            fontStyle: 'bold' as const,
           },
           footStyles: {
             fillColor: [155, 89, 182],
             textColor: 255,
-            fontStyle: 'bold',
+            fontStyle: 'bold' as const,
           }
         })
         
@@ -184,9 +184,9 @@ export default function FundSummaryReport() {
         theme: 'plain',
         headStyles: { fillColor: [255, 255, 255] },
         bodyStyles: {
-          fillColor: [41, 128, 185],
+          fillColor: [41, 128, 185] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
           fontSize: 11,
         },
         margin: { left: 20, right: 20 }

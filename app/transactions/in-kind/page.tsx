@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 async function getFunds() {
   const supabase = await createServerClient()
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('funds')
     .select('*')
     .order('name')
@@ -21,7 +21,7 @@ async function getFunds() {
 
 async function getAssetAccounts() {
   const supabase = await createServerClient()
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('chart_of_accounts')
     .select('*')
     .eq('account_type', 'Asset')
@@ -40,7 +40,7 @@ async function getAssetAccounts() {
 
 async function getExpenseAccounts() {
   const supabase = await createServerClient()
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('chart_of_accounts')
     .select('*')
     .eq('account_type', 'Expense')
@@ -60,7 +60,7 @@ async function getInKindIncomeAccount() {
   const supabase = await createServerClient()
   
   // First, try to find the 4050 - Non-Cash Contributions account
-  let { data, error } = await supabase
+  let { data, error } = await (supabase as any)
     .from('chart_of_accounts')
     .select('*')
     .eq('account_number', 4050)
@@ -74,7 +74,7 @@ async function getInKindIncomeAccount() {
   // If 4050 doesn't exist, create it
   if (!data) {
     console.log('Creating 4050 - Non-Cash Contributions account...')
-    const { data: newAccount, error: createError } = await supabase
+    const { data: newAccount, error: createError } = await (supabase as any)
       .from('chart_of_accounts')
       .insert({
         account_number: 4050,

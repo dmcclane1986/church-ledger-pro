@@ -94,9 +94,9 @@ export default function IncomeStatementReport() {
         foot: [['Total Revenue', pdfFormatCurrency(totalPlannedIncome), pdfFormatCurrency(data.totalIncome)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [46, 204, 113],
+          fillColor: [46, 204, 113] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -123,9 +123,9 @@ export default function IncomeStatementReport() {
         foot: [['Total Expenses', pdfFormatCurrency(totalPlannedExpenses), pdfFormatCurrency(data.totalExpenses)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [231, 76, 60],
+          fillColor: [231, 76, 60] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -134,7 +134,7 @@ export default function IncomeStatementReport() {
       // Net Income
       const netPlannedIncome = totalPlannedIncome - totalPlannedExpenses
       const netActualIncome = data.totalIncome - data.totalExpenses
-      const netIncomeColor = netActualIncome >= 0 ? [46, 204, 113] : [231, 76, 60]
+      const netIncomeColor: [number, number, number] = netActualIncome >= 0 ? [46, 204, 113] : [231, 76, 60]
       
       autoTable(doc, {
         startY: currentY,
@@ -149,7 +149,7 @@ export default function IncomeStatementReport() {
         bodyStyles: {
           fillColor: netIncomeColor,
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
           fontSize: 11,
         },
         margin: { left: 20, right: 20 }

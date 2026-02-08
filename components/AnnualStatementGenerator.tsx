@@ -173,7 +173,7 @@ export default function AnnualStatementGenerator({
           cellPadding: 3,
         },
         headStyles: {
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
           fillColor: [240, 240, 240],
         },
         columnStyles: {
@@ -235,7 +235,7 @@ export default function AnnualStatementGenerator({
           cellPadding: 3,
         },
         headStyles: {
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
           fillColor: [240, 240, 240],
         },
         columnStyles: {

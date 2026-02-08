@@ -165,16 +165,16 @@ export function addPDFFooter(doc: jsPDF) {
  */
 export const defaultTableStyles = {
   headStyles: {
-    fillColor: [41, 128, 185], // Blue
+    fillColor: [41, 128, 185] as [number, number, number], // Blue
     textColor: 255,
-    fontStyle: 'bold',
+    fontStyle: 'bold' as const,
     fontSize: 10,
   },
   bodyStyles: {
     fontSize: 9,
   },
   alternateRowStyles: {
-    fillColor: [245, 245, 245],
+    fillColor: [245, 245, 245] as [number, number, number],
   },
   margin: { top: 20, left: 20, right: 20 },
 }

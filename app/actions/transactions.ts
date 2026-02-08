@@ -24,7 +24,7 @@ export async function recordWeeklyGiving(input: RecordGivingInput) {
     }
 
     // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -60,7 +60,7 @@ export async function recordWeeklyGiving(input: RecordGivingInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -124,7 +124,7 @@ export async function recordExpense(input: RecordExpenseInput) {
     }
 
     // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -159,7 +159,7 @@ export async function recordExpense(input: RecordExpenseInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -218,7 +218,7 @@ export async function transferBetweenAccounts(input: AccountTransferInput) {
     }
 
     // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -254,7 +254,7 @@ export async function transferBetweenAccounts(input: AccountTransferInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -336,7 +336,7 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
     }
 
     // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -399,7 +399,7 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
     }
 
     // Step 3: Insert all ledger lines
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -450,7 +450,7 @@ export async function checkDuplicateTransaction(
 
   try {
     // Get all journal entries for this date and description
-    const { data: journalEntries, error: journalError } = await supabase
+    const { data: journalEntries, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .select('id, entry_date, description')
       .eq('entry_date', date)
@@ -467,7 +467,7 @@ export async function checkDuplicateTransaction(
 
     // Check ledger lines for matching amounts
     for (const entry of journalEntries) {
-      const { data: ledgerLines, error: ledgerError } = await supabase
+      const { data: ledgerLines, error: ledgerError } = await (supabase as any)
         .from('ledger_lines')
         .select('debit, credit')
         .eq('journal_entry_id', entry.id)
@@ -476,7 +476,7 @@ export async function checkDuplicateTransaction(
 
       // Check if any line has the matching amount
       const hasMatchingAmount = ledgerLines?.some(
-        (line) => line.debit === amount || line.credit === amount
+        (line: any) => line.debit === amount || line.credit === amount
       )
 
       if (hasMatchingAmount) {
@@ -498,7 +498,7 @@ export async function getCheckingAccounts() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id, account_number, name')
       .eq('account_type', 'Asset')
@@ -525,7 +525,7 @@ export async function getAllTransactions(limit = 100, offset = 0) {
 
   try {
     // Fetch journal entries with their ledger lines
-    const { data: journalEntries, error: journalError, count } = await supabase
+    const { data: journalEntries, error: journalError, count } = await (supabase as any)
       .from('journal_entries')
       .select(`
         *,
@@ -573,7 +573,7 @@ export async function getTransactionById(journalEntryId: string) {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('journal_entries')
       .select(`
         *,
@@ -618,7 +618,7 @@ export async function deleteTransaction(journalEntryId: string) {
 
   try {
     // First delete all ledger lines
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .delete()
       .eq('journal_entry_id', journalEntryId)
@@ -629,7 +629,7 @@ export async function deleteTransaction(journalEntryId: string) {
     }
 
     // Then delete the journal entry
-    const { error: journalError } = await supabase
+    const { error: journalError } = await (supabase as any)
       .from('journal_entries')
       .delete()
       .eq('id', journalEntryId)
@@ -673,7 +673,7 @@ export async function transferBetweenFunds(input: FundTransferInput) {
     }
 
     // Step 1: Create the journal entry header
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -708,7 +708,7 @@ export async function transferBetweenFunds(input: FundTransferInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -797,7 +797,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
     // Step 1: Create individual journal entries for each check with a donor_id
     for (const check of input.checks) {
       if (check.donorId && check.amount > 0) {
-        const { data: checkEntry, error: checkError } = await supabase
+        const { data: checkEntry, error: checkError } = await (supabase as any)
           .from('journal_entries')
           .insert({
             entry_date: input.date,
@@ -839,7 +839,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
           },
         ]
 
-        const { error: checkLedgerError } = await supabase
+        const { error: checkLedgerError } = await (supabase as any)
           .from('ledger_lines')
           .insert(checkLedgerLines)
 
@@ -857,7 +857,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
     // Step 2: Create individual journal entries for each envelope with a donor_id
     for (const envelope of input.envelopes) {
       if (envelope.donorId && envelope.amount > 0) {
-        const { data: envelopeEntry, error: envelopeError } = await supabase
+        const { data: envelopeEntry, error: envelopeError } = await (supabase as any)
           .from('journal_entries')
           .insert({
             entry_date: input.date,
@@ -899,7 +899,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
           },
         ]
 
-        const { error: envelopeLedgerError } = await supabase
+        const { error: envelopeLedgerError } = await (supabase as any)
           .from('ledger_lines')
           .insert(envelopeLedgerLines)
 
@@ -927,7 +927,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
 
     // Only create a main entry if there's remaining amount, missions, or designated items
     if (remainingGeneralFundAmount > 0.01 || (input.missionsAmount && input.missionsAmount > 0) || input.designatedItems.length > 0) {
-      const { data: mainEntry, error: mainError } = await supabase
+      const { data: mainEntry, error: mainError } = await (supabase as any)
         .from('journal_entries')
         .insert({
           entry_date: input.date,
@@ -1024,7 +1024,7 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
 
       // Insert ledger lines for main entry
       if (ledgerLines.length > 0) {
-        const { error: ledgerError } = await supabase
+        const { error: ledgerError } = await (supabase as any)
           .from('ledger_lines')
           .insert(ledgerLines)
 
@@ -1095,7 +1095,7 @@ export async function recordInKindDonation(input: InKindDonationInput) {
     }
 
     // Step 1: Create the journal entry header with is_in_kind flag
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.date,
@@ -1133,7 +1133,7 @@ export async function recordInKindDonation(input: InKindDonationInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 

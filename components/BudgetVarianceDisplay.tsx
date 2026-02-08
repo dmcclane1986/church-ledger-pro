@@ -66,7 +66,7 @@ export default function BudgetVarianceDisplay({
       <h2 className="text-xl font-semibold text-gray-900 mb-6">{title}</h2>
 
       <div className="space-y-6">
-        {items.map((item) => (
+        {items.map((item: any) => (
           <div key={item.account_id} className="space-y-2">
             {/* Account Header */}
             <div className="flex justify-between items-start">

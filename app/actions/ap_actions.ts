@@ -14,7 +14,7 @@ export async function getVendors() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('vendors')
       .select('*')
       .eq('is_active', true)
@@ -53,7 +53,7 @@ export async function createVendor(input: CreateVendorInput) {
       return { success: false, error: 'Vendor name is required' }
     }
 
-    const { data: vendor, error: vendorError } = await supabase
+    const { data: vendor, error: vendorError } = await (supabase as any)
       .from('vendors')
       .insert({
         name: input.name.trim(),
@@ -134,7 +134,7 @@ export async function createBill(input: CreateBillInput) {
 
     // Step 1: Create journal entry for the bill
     // Double-entry: Debit Expense, Credit Accounts Payable (Liability)
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.invoiceDate,
@@ -171,7 +171,7 @@ export async function createBill(input: CreateBillInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -197,7 +197,7 @@ export async function createBill(input: CreateBillInput) {
     }
 
     // Step 4: Create the bill record
-    const { data: bill, error: billError } = await supabase
+    const { data: bill, error: billError } = await (supabase as any)
       .from('bills')
       .insert({
         vendor_id: input.vendorId,
@@ -269,7 +269,7 @@ export async function payBill(input: PayBillInput) {
     }
 
     // Step 1: Get the bill
-    const { data: bill, error: billError } = await supabase
+    const { data: bill, error: billError } = await (supabase as any)
       .from('bills')
       .select('*')
       .eq('id', input.billId)
@@ -301,7 +301,7 @@ export async function payBill(input: PayBillInput) {
 
     // Step 2: Create journal entry for payment
     // Double-entry: Debit Accounts Payable (decrease liability), Credit Cash (decrease asset)
-    const { data: journalEntry, error: journalError } = await supabase
+    const { data: journalEntry, error: journalError } = await (supabase as any)
       .from('journal_entries')
       .insert({
         entry_date: input.paymentDate,
@@ -336,7 +336,7 @@ export async function payBill(input: PayBillInput) {
       },
     ]
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .insert(ledgerLines)
 
@@ -362,7 +362,7 @@ export async function payBill(input: PayBillInput) {
     }
 
     // Step 5: Record the payment
-    const { error: paymentError } = await supabase
+    const { error: paymentError } = await (supabase as any)
       .from('bill_payments')
       .insert({
         bill_id: input.billId,
@@ -390,7 +390,7 @@ export async function payBill(input: PayBillInput) {
           ? 'partial'
           : 'unpaid'
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('bills')
       .update({
         amount_paid: newAmountPaid,
@@ -467,7 +467,7 @@ export async function getBillById(billId: string) {
   const supabase = await createServerClient()
 
   try {
-    const { data: bill, error: billError } = await supabase
+    const { data: bill, error: billError } = await (supabase as any)
       .from('bills')
       .select(`
         *,
@@ -514,7 +514,7 @@ export async function getTotalAmountOwed() {
   const supabase = await createServerClient()
 
   try {
-    const { data: bills, error } = await supabase
+    const { data: bills, error } = await (supabase as any)
       .from('bills')
       .select('amount, amount_paid')
       .in('status', ['unpaid', 'partial'])
@@ -525,7 +525,7 @@ export async function getTotalAmountOwed() {
     }
 
     const total = (bills || []).reduce(
-      (sum, bill) => sum + (bill.amount - bill.amount_paid),
+      (sum: number, bill: any) => sum + (bill.amount - bill.amount_paid),
       0
     )
 
@@ -548,7 +548,7 @@ export async function cancelBill(billId: string, reason?: string) {
     }
 
     // Check if bill has been paid
-    const { data: bill, error: billError } = await supabase
+    const { data: bill, error: billError } = await (supabase as any)
       .from('bills')
       .select('status, amount_paid')
       .eq('id', billId)
@@ -566,7 +566,7 @@ export async function cancelBill(billId: string, reason?: string) {
     }
 
     // Update bill status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('bills')
       .update({
         status: 'cancelled',
@@ -594,7 +594,7 @@ export async function getLiabilityAccounts() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id, account_number, name')
       .eq('account_type', 'Liability')
@@ -620,7 +620,7 @@ export async function getExpenseAccounts() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id, account_number, name')
       .eq('account_type', 'Expense')
@@ -646,7 +646,7 @@ export async function getFunds() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('funds')
       .select('id, name, is_restricted')
       .order('name', { ascending: true })

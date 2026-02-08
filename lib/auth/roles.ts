@@ -43,7 +43,7 @@ export async function getUserRole(): Promise<UserRole> {
       return null
     }
 
-    return data.role as UserRole
+    return (data as any)?.role as UserRole
   } catch (error) {
     console.error('❌ getUserRole() Exception:', error)
     return null

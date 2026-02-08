@@ -38,7 +38,7 @@ export async function fetchDonors(): Promise<{
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('donors')
       .select('*')
       .order('name')
@@ -75,7 +75,7 @@ export async function createDonor(donor: {
 
     // Check if envelope number is already in use (if provided)
     if (donor.envelope_number && donor.envelope_number.trim() !== '') {
-      const { data: existingDonor, error: checkError } = await supabase
+      const { data: existingDonor, error: checkError } = await (supabase as any)
         .from('donors')
         .select('id, name, envelope_number')
         .eq('envelope_number', donor.envelope_number.trim())
@@ -94,7 +94,7 @@ export async function createDonor(donor: {
       }
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('donors')
       .insert({
         name: donor.name.trim(),
@@ -131,7 +131,7 @@ export async function fetchDonorStatement(
 
   try {
     // Fetch donor info
-    const { data: donor, error: donorError } = await supabase
+    const { data: donor, error: donorError } = await (supabase as any)
       .from('donors')
       .select('*')
       .eq('id', donorId)
@@ -147,7 +147,7 @@ export async function fetchDonorStatement(
     const endDate = `${year}-12-31`
 
     // Fetch all journal entries for this donor in the year
-    const { data: journalEntries, error: entriesError } = await supabase
+    const { data: journalEntries, error: entriesError } = await (supabase as any)
       .from('journal_entries')
       .select('id, entry_date, description, reference_number, is_in_kind')
       .eq('donor_id', donorId)
@@ -167,7 +167,7 @@ export async function fetchDonorStatement(
 
     for (const entry of journalEntries || []) {
       // Get ledger lines for this entry (looking for income/credit lines)
-      const { data: ledgerLines } = await supabase
+      const { data: ledgerLines } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           credit,

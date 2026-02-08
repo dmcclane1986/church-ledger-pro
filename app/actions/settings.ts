@@ -16,7 +16,7 @@ export async function getChurchSettings() {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('church_settings')
       .select('*')
       .eq('id', '00000000-0000-0000-0000-000000000001')
@@ -69,7 +69,7 @@ export async function updateChurchSettings(settings: Partial<ChurchSettings>) {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('church_settings')
       .update(settings)
       .eq('id', '00000000-0000-0000-0000-000000000001')
@@ -178,7 +178,7 @@ export async function uploadChurchLogo(formData: FormData) {
     if (uploadError) {
       console.error('Upload error details:', {
         message: uploadError.message,
-        statusCode: uploadError.statusCode,
+        statusCode: (uploadError as any).statusCode,
         error: uploadError
       })
       return { 
@@ -197,7 +197,7 @@ export async function uploadChurchLogo(formData: FormData) {
     console.log('Public URL generated:', publicUrl)
 
     // Update settings with new logo URL
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('church_settings')
       .update({ logo_url: publicUrl })
       .eq('id', '00000000-0000-0000-0000-000000000001')
@@ -252,7 +252,7 @@ export async function deleteChurchLogo() {
     }
 
     // Update settings to remove logo URL
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('church_settings')
       .update({ logo_url: null })
       .eq('id', '00000000-0000-0000-0000-000000000001')

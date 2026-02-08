@@ -25,7 +25,7 @@ export async function getUnclearedTransactions(accountId: string) {
     }
 
     // Fetch ledger lines that are not cleared yet for this account
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         *,
@@ -75,7 +75,7 @@ export async function getClearedTransactions(accountId: string, limit = 100) {
       return { success: false, error: 'Account ID is required' }
     }
 
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         *,
@@ -129,7 +129,7 @@ export async function markTransactionCleared(ledgerLineId: string, cleared: bool
       cleared_at: cleared ? new Date().toISOString() : null,
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('ledger_lines')
       .update(updateData)
       .eq('id', ledgerLineId)
@@ -160,7 +160,7 @@ export async function calculateClearedBalance(accountId: string) {
     }
 
     // Get all cleared ledger lines for this account
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select('debit, credit, account_id')
       .eq('account_id', accountId)
@@ -172,7 +172,7 @@ export async function calculateClearedBalance(accountId: string) {
     }
 
     // Get the account type to determine normal balance
-    const { data: account, error: accountError } = await supabase
+    const { data: account, error: accountError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('account_type')
       .eq('id', accountId)
@@ -230,7 +230,7 @@ export async function startReconciliation(input: StartReconciliationInput) {
     }
 
     // Check if there's already an in-progress reconciliation for this account
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await (supabase as any)
       .from('reconciliations')
       .select('id')
       .eq('account_id', input.accountId)
@@ -250,7 +250,7 @@ export async function startReconciliation(input: StartReconciliationInput) {
     }
 
     // Create new reconciliation record
-    const { data: reconciliation, error: reconciliationError } = await supabase
+    const { data: reconciliation, error: reconciliationError } = await (supabase as any)
       .from('reconciliations')
       .insert({
         account_id: input.accountId,
@@ -302,7 +302,7 @@ export async function markTransactionsCleared(ledgerLineIds: string[]) {
 
     const timestamp = new Date().toISOString()
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('ledger_lines')
       .update({
         is_cleared: true,
@@ -337,7 +337,7 @@ export async function calculateBalanceForTransactions(
     }
 
     // Get the specified ledger lines for this account
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select('debit, credit, id')
       .eq('account_id', accountId)
@@ -349,7 +349,7 @@ export async function calculateBalanceForTransactions(
     }
 
     // Get the account type to determine normal balance
-    const { data: account, error: accountError } = await supabase
+    const { data: account, error: accountError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('account_type')
       .eq('id', accountId)
@@ -436,7 +436,7 @@ export async function finalizeReconciliation(
     }
 
     // Update reconciliation record to completed
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('reconciliations')
       .update({
         status: 'completed',
@@ -474,7 +474,7 @@ export async function getCurrentReconciliation(accountId: string) {
       return { success: false, error: 'Account ID is required' }
     }
 
-    const { data: reconciliation, error: reconciliationError } = await supabase
+    const { data: reconciliation, error: reconciliationError } = await (supabase as any)
       .from('reconciliations')
       .select(`
         *,
@@ -512,7 +512,7 @@ export async function getReconciliationHistory(accountId: string, limit = 10) {
       return { success: false, error: 'Account ID is required' }
     }
 
-    const { data: reconciliations, error: reconciliationsError } = await supabase
+    const { data: reconciliations, error: reconciliationsError } = await (supabase as any)
       .from('reconciliations')
       .select('*')
       .eq('account_id', accountId)
@@ -543,7 +543,7 @@ export async function deleteReconciliation(reconciliationId: string) {
     }
 
     // Only allow deletion of in-progress reconciliations
-    const { data: reconciliation, error: fetchError } = await supabase
+    const { data: reconciliation, error: fetchError } = await (supabase as any)
       .from('reconciliations')
       .select('status')
       .eq('id', reconciliationId)
@@ -557,7 +557,7 @@ export async function deleteReconciliation(reconciliationId: string) {
       return { success: false, error: 'Cannot delete completed reconciliations' }
     }
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await (supabase as any)
       .from('reconciliations')
       .delete()
       .eq('id', reconciliationId)

@@ -25,7 +25,7 @@ export async function getExpenseAccounts(): Promise<{
   try {
     const supabase = await createServerClient()
 
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('*')
       .eq('account_type', 'Expense')
@@ -65,18 +65,18 @@ export async function getAllAccounts(): Promise<{
     const supabase = await createServerClient()
 
     // Get all accounts
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('*')
       .order('account_number', { ascending: true })
 
-    if (accountsError) {
+    if (accountsError || !accounts) {
       console.error('Error fetching accounts:', accountsError)
-      return { success: false, error: accountsError.message }
+      return { success: false, error: accountsError?.message || 'No accounts found' }
     }
 
     // Get transaction counts for each account
-    const { data: usageCounts, error: usageError } = await supabase
+    const { data: usageCounts, error: usageError } = await (supabase as any)
       .from('ledger_lines')
       .select('account_id')
 
@@ -87,15 +87,17 @@ export async function getAllAccounts(): Promise<{
 
     // Count transactions per account
     const transactionCounts = new Map<string, number>()
-    usageCounts?.forEach(line => {
-      transactionCounts.set(
-        line.account_id, 
-        (transactionCounts.get(line.account_id) || 0) + 1
-      )
-    })
+    if (usageCounts && Array.isArray(usageCounts)) {
+      usageCounts.forEach((line: { account_id: string }) => {
+        transactionCounts.set(
+          line.account_id, 
+          (transactionCounts.get(line.account_id) || 0) + 1
+        )
+      })
+    }
 
     // Combine accounts with usage info
-    const accountsWithUsage: AccountWithUsage[] = accounts.map(account => ({
+    const accountsWithUsage: AccountWithUsage[] = accounts.map((account: AccountRow) => ({
       ...account,
       transaction_count: transactionCounts.get(account.id) || 0,
       can_delete: (transactionCounts.get(account.id) || 0) === 0
@@ -125,7 +127,7 @@ export async function createAccount(
     const supabase = await createServerClient()
 
     // Check if account number already exists
-    const { data: existing, error: checkError } = await supabase
+    const { data: existing, error: checkError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id')
       .eq('account_number', account.account_number)
@@ -139,7 +141,7 @@ export async function createAccount(
     }
 
     // Create the account
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .insert(account)
       .select()
@@ -176,7 +178,7 @@ export async function updateAccount(
 
     // If updating account number, check if it already exists
     if (updates.account_number !== undefined) {
-      const { data: existing, error: checkError } = await supabase
+      const { data: existing, error: checkError } = await (supabase as any)
         .from('chart_of_accounts')
         .select('id')
         .eq('account_number', updates.account_number)
@@ -192,7 +194,7 @@ export async function updateAccount(
     }
 
     // Update the account
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('chart_of_accounts')
       .update({
         ...updates,
@@ -232,7 +234,7 @@ export async function deleteAccount(accountId: string): Promise<{
     const supabase = await createServerClient()
 
     // Check if account is used in any transactions
-    const { data: usage, error: usageError } = await supabase
+    const { data: usage, error: usageError } = await (supabase as any)
       .from('ledger_lines')
       .select('id')
       .eq('account_id', accountId)
@@ -251,7 +253,7 @@ export async function deleteAccount(accountId: string): Promise<{
     }
 
     // Delete the account
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('chart_of_accounts')
       .delete()
       .eq('id', accountId)
@@ -285,7 +287,7 @@ export async function toggleAccountStatus(
 
     const supabase = await createServerClient()
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('chart_of_accounts')
       .update({ 
         is_active: isActive,

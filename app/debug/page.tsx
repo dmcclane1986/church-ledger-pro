@@ -102,9 +102,9 @@ export default async function DebugPage() {
           </div>
         ) : roleFromDB ? (
           <div className="space-y-2 font-mono text-sm">
-            <div><strong>Role:</strong> <span className="text-green-600 font-bold">{roleFromDB.role}</span></div>
-            <div><strong>Created:</strong> {roleFromDB.created_at}</div>
-            <div><strong>Updated:</strong> {roleFromDB.updated_at}</div>
+            <div><strong>Role:</strong> <span className="text-green-600 font-bold">{(roleFromDB as any).role}</span></div>
+            <div><strong>Created:</strong> {(roleFromDB as any).created_at}</div>
+            <div><strong>Updated:</strong> {(roleFromDB as any).updated_at}</div>
             <pre className="bg-gray-50 p-3 rounded mt-2 text-xs">
               {JSON.stringify(roleFromDB, null, 2)}
             </pre>
@@ -151,7 +151,7 @@ export default async function DebugPage() {
             <p className="font-bold mb-2">Issue detected!</p>
             {roleFromDB && !roleFromHelper ? (
               <div>
-                <p>✅ Role exists in database: <strong>{roleFromDB.role}</strong></p>
+                <p>✅ Role exists in database: <strong>{(roleFromDB as any).role}</strong></p>
                 <p>❌ But getUserRole() returns: <strong>null</strong></p>
                 <p className="mt-2 font-semibold">This is an RLS policy issue!</p>
                 <p className="mt-1">Run the SQL script: <code className="bg-red-100 px-2 py-1 rounded">migrations/fix_rls_infinite_recursion_v2.sql</code></p>

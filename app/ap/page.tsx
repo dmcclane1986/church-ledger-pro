@@ -231,7 +231,7 @@ export default function AccountsPayablePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {bills.map((bill) => {
+              {bills.map((bill: any) => {
                 const remainingBalance = bill.amount - bill.amount_paid
                 return (
                   <div
@@ -315,14 +315,14 @@ export default function AccountsPayablePage() {
               setShowPayModal(false)
               setSelectedBill(null)
             }}
-            onSuccess={(message) => {
+            onSuccess={(message: any) => {
               setSuccess(message)
               setShowPayModal(false)
               setSelectedBill(null)
               loadData()
               setTimeout(() => setSuccess(null), 5000)
             }}
-            onError={(err) => {
+            onError={(err: any) => {
               setError(err)
               setTimeout(() => setError(null), 5000)
             }}
@@ -333,13 +333,13 @@ export default function AccountsPayablePage() {
         {showCreateBillModal && (
           <CreateBillModal
             onClose={() => setShowCreateBillModal(false)}
-            onSuccess={(message) => {
+            onSuccess={(message: any) => {
               setSuccess(message)
               setShowCreateBillModal(false)
               loadData()
               setTimeout(() => setSuccess(null), 5000)
             }}
-            onError={(err) => {
+            onError={(err: any) => {
               setError(err)
               setTimeout(() => setError(null), 5000)
             }}

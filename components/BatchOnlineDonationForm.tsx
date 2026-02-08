@@ -244,7 +244,7 @@ export default function BatchOnlineDonationForm({
               </tr>
             </thead>
             <tbody>
-              {donationRows.filter(row => parseFloat(row.amount) > 0).map((row) => (
+              {donationRows.filter(row => parseFloat(row.amount) > 0).map((row: any) => (
                 <tr key={row.id} className="border-b">
                   <td className="py-2">{donors.find(d => d.id === row.donorId)?.name}</td>
                   <td className="py-2">{funds.find(f => f.id === row.fundId)?.name}</td>
@@ -400,7 +400,7 @@ export default function BatchOnlineDonationForm({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {donationRows.map((row) => (
+              {donationRows.map((row: any) => (
                 <tr key={row.id}>
                   <td className="px-4 py-3">
                     <select

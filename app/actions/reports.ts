@@ -53,7 +53,7 @@ export async function fetchBalanceSheet(): Promise<{
 
   try {
     // Fetch fund-to-equity mappings
-    const { data: fundMappings } = await supabase
+    const { data: fundMappings } = await (supabase as any)
       .from('funds')
       .select('id, name, is_restricted, net_asset_account_id')
 
@@ -68,7 +68,7 @@ export async function fetchBalanceSheet(): Promise<{
     }
 
     // Fetch all ledger lines with account and fund details (excluding voided entries)
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         id,
@@ -241,7 +241,7 @@ export async function fetchBalanceSheet(): Promise<{
       
       if (!alreadyIncluded && fundBalance !== 0) {
         // Fetch this equity account's details
-        const { data: equityAccount } = await supabase
+        const { data: equityAccount } = await (supabase as any)
           .from('chart_of_accounts')
           .select('id, account_number, name')
           .eq('id', equityAccountId)
@@ -351,18 +351,18 @@ export async function fetchTransactionHistory(
     const entriesWithTotals: TransactionHistoryEntry[] = []
 
     for (const entry of entries || []) {
-      const { data: ledgerLines } = await supabase
+      const { data: ledgerLines } = await (supabase as any)
         .from('ledger_lines')
         .select('debit, credit')
-        .eq('journal_entry_id', entry.id)
+        .eq('journal_entry_id', (entry as any).id)
 
       // Total amount is the sum of debits (or credits, they should be equal)
-      const totalAmount = ledgerLines?.reduce((sum, line) => sum + line.debit, 0) || 0
+      const totalAmount = ledgerLines?.reduce((sum: number, line: any) => sum + line.debit, 0) || 0
 
-      const donor = entry.donors as any
+      const donor = (entry as any).donors as any
 
       entriesWithTotals.push({
-        ...entry,
+        ...(entry as any),
         total_amount: totalAmount,
         donor_name: donor?.name || null,
       })
@@ -381,7 +381,7 @@ export async function fetchTransactionDetails(
   const supabase = await createServerClient()
 
   try {
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         id,
@@ -428,7 +428,7 @@ export async function voidTransaction(
 
   try {
     // Check if already voided
-    const { data: entry } = await supabase
+    const { data: entry } = await (supabase as any)
       .from('journal_entries')
       .select('is_voided')
       .eq('id', journalEntryId)
@@ -439,7 +439,7 @@ export async function voidTransaction(
     }
 
     // Mark as voided
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('journal_entries')
       .update({
         is_voided: true,
@@ -472,7 +472,7 @@ export async function fetchIncomeStatement(
     const lastDay = new Date(year, month, 0).toISOString().split('T')[0]
 
     // Fetch all ledger lines for the month with account details (excluding voided entries)
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         id,
@@ -569,7 +569,7 @@ export async function fetchIncomeStatement(
 
     // Fetch budgets for the fiscal year (use the year of the selected month)
     const fiscalYear = year
-    const { data: budgets } = await supabase
+    const { data: budgets } = await (supabase as any)
       .from('budgets')
       .select('account_id, budgeted_amount')
       .eq('fiscal_year', fiscalYear)
@@ -645,7 +645,7 @@ export async function fetchQuarterlyIncomeStatement(
       const lastDay = new Date(year, quarter.endMonth, 0).toISOString().split('T')[0]
 
       // Fetch all ledger lines for the quarter with account details (excluding voided entries)
-      const { data: ledgerLines, error: ledgerError } = await supabase
+      const { data: ledgerLines, error: ledgerError } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           id,
@@ -757,7 +757,7 @@ export async function fetchQuarterlyIncomeStatement(
     }
 
     // Fetch budgets for the fiscal year
-    const { data: budgets } = await supabase
+    const { data: budgets } = await (supabase as any)
       .from('budgets')
       .select('account_id, budgeted_amount')
       .eq('fiscal_year', year)
@@ -814,7 +814,7 @@ export async function fetchFundSummary(
 
   try {
     // Get all funds
-    const { data: funds, error: fundsError } = await supabase
+    const { data: funds, error: fundsError } = await (supabase as any)
       .from('funds')
       .select('id, name, is_restricted')
       .order('is_restricted', { ascending: true })
@@ -830,7 +830,7 @@ export async function fetchFundSummary(
     }
 
     // Get all ledger lines with journal entry dates
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         id,
@@ -855,7 +855,7 @@ export async function fetchFundSummary(
 
     // Fetch budgets for the fiscal year (use year from startDate)
     const fiscalYear = new Date(startDate).getFullYear()
-    const { data: budgets } = await supabase
+    const { data: budgets } = await (supabase as any)
       .from('budgets')
       .select(`
         account_id,
@@ -893,7 +893,7 @@ export async function fetchFundSummary(
       let plannedExpenses = 0
 
       // Filter ledger lines for this fund
-      const fundLines = (ledgerLines || []).filter(line => line.fund_id === fund.id)
+      const fundLines = (ledgerLines || []).filter((line: any) => line.fund_id === fund.id)
 
       // Track which accounts have activity in this fund during the period
       const accountsWithActivity = new Set<string>()
@@ -1004,7 +1004,7 @@ export async function fetchLast6MonthsIncomeExpense(): Promise<{
       const lastDay = new Date(year, month, 0).toISOString().split('T')[0]
 
       // Fetch ledger lines for this month
-      const { data: ledgerLines, error: ledgerError } = await supabase
+      const { data: ledgerLines, error: ledgerError } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           debit,
@@ -1085,7 +1085,7 @@ export async function fetchYTDIncomeExpense(): Promise<{
     const today = now.toISOString().split('T')[0]
 
     // Fetch all ledger lines for the year with account details (excluding voided entries)
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         debit,
@@ -1168,7 +1168,7 @@ export async function fetchYTDFundBalances(): Promise<{
     const today = now.toISOString().split('T')[0]
 
     // Fetch all ledger lines for the year with fund and account details
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         debit,
@@ -1287,7 +1287,7 @@ export async function getAnnualGiving(
 
   try {
     // Fetch donor info
-    const { data: donor, error: donorError } = await supabase
+    const { data: donor, error: donorError } = await (supabase as any)
       .from('donors')
       .select('*')
       .eq('id', donorId)
@@ -1303,7 +1303,7 @@ export async function getAnnualGiving(
     const endDate = `${year}-12-31`
 
     // Fetch all journal entries for this donor in the year
-    const { data: journalEntries, error: entriesError } = await supabase
+    const { data: journalEntries, error: entriesError } = await (supabase as any)
       .from('journal_entries')
       .select('id, entry_date, description, reference_number, is_in_kind')
       .eq('donor_id', donorId)
@@ -1322,7 +1322,7 @@ export async function getAnnualGiving(
 
     for (const entry of journalEntries || []) {
       // Get ledger lines for this entry that are Income accounts
-      const { data: ledgerLines } = await supabase
+      const { data: ledgerLines } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           credit,

@@ -15,14 +15,14 @@ export async function GET(request: NextRequest) {
           get(name: string) {
             return request.cookies.get(name)?.value
           },
-          set(name: string, value: string, options) {
+          set(name: string, value: string, options: any) {
             request.cookies.set({
               name,
               value,
               ...options,
             })
           },
-          remove(name: string, options) {
+          remove(name: string, options: any) {
             request.cookies.set({
               name,
               value: '',

@@ -44,7 +44,7 @@ export async function fetchBudgets(
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('budgets')
       .select('*')
       .eq('fiscal_year', fiscalYear)
@@ -75,7 +75,7 @@ export async function upsertBudget(budget: {
   const supabase = await createServerClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('budgets')
       .upsert(
         {
@@ -135,7 +135,7 @@ export async function fetchHistoricalActuals(
     const endDate = `${fiscalYear}-12-31`
 
     // Fetch all income and expense accounts
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await (supabase as any)
       .from('chart_of_accounts')
       .select('id, account_number, name, account_type')
       .in('account_type', ['Income', 'Expense'])
@@ -148,7 +148,7 @@ export async function fetchHistoricalActuals(
     }
 
     // Fetch all ledger lines for the fiscal year (excluding voided entries)
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         debit,
@@ -283,7 +283,7 @@ export async function upsertBudgets(
     // Use upsert for each budget (Supabase doesn't support batch upsert with onConflict)
     const results = await Promise.all(
       budgets.map((budget) =>
-        supabase
+        (supabase as any)
           .from('budgets')
           .upsert(
             {
@@ -326,7 +326,7 @@ export async function fetchBudgetVariance(
 
   try {
     // Fetch all budgets for the fiscal year
-    const { data: budgets, error: budgetsError } = await supabase
+    const { data: budgets, error: budgetsError } = await (supabase as any)
       .from('budgets')
       .select(`
         account_id,
@@ -350,7 +350,7 @@ export async function fetchBudgetVariance(
     const endDate = `${fiscalYear}-12-31`
 
     // Fetch all ledger lines for the fiscal year (excluding voided entries)
-    const { data: ledgerLines, error: ledgerError } = await supabase
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
       .from('ledger_lines')
       .select(`
         debit,

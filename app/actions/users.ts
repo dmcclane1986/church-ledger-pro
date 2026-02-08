@@ -50,7 +50,7 @@ export async function getAllUsers(): Promise<{
     const adminClient = createAdminClient()
 
     // Query auth.users with left join on user_roles
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('user_roles')
       .select('user_id, role, created_at')
 
@@ -68,8 +68,8 @@ export async function getAllUsers(): Promise<{
     }
 
     // Combine users with their roles
-    const usersWithRoles: UserWithRole[] = users.map(user => {
-      const roleData = data?.find(r => r.user_id === user.id)
+    const usersWithRoles: UserWithRole[] = users.map((user: any) => {
+      const roleData = data?.find((r: any) => r.user_id === user.id)
       return {
         id: user.id,
         email: user.email || '',
@@ -125,7 +125,7 @@ export async function updateUserRole(
 
     // If role is null, delete the role assignment
     if (role === null) {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('user_roles')
         .delete()
         .eq('user_id', userId)
@@ -139,7 +139,7 @@ export async function updateUserRole(
     }
 
     // Upsert the role
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('user_roles')
       .upsert({
         user_id: userId,

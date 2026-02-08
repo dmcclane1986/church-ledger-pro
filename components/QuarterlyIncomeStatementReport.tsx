@@ -141,9 +141,9 @@ export default function QuarterlyIncomeStatementReport() {
         foot: [revenueTotalRow],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [46, 204, 113],
+          fillColor: [46, 204, 113] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -193,9 +193,9 @@ export default function QuarterlyIncomeStatementReport() {
         foot: [expenseTotalRow],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [231, 76, 60],
+          fillColor: [231, 76, 60] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -224,9 +224,9 @@ export default function QuarterlyIncomeStatementReport() {
         theme: 'plain',
         headStyles: { fillColor: [255, 255, 255] },
         bodyStyles: {
-          fillColor: [41, 128, 185],
+          fillColor: [41, 128, 185] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
           fontSize: 11,
         },
         margin: { left: 20, right: 20 }

@@ -39,7 +39,7 @@ export default async function DiagnosticsPage() {
   const fundBalances = new Map<string, { name: string; credits: number; debits: number }>()
   
   if (ledgerLines) {
-    for (const line of ledgerLines) {
+    for (const line of ledgerLines as any[]) {
       const fundId = line.fund_id
       const fundName = (line.funds as any)?.name || 'Unknown'
       
@@ -103,7 +103,7 @@ export default async function DiagnosticsPage() {
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {funds.map((fund) => (
+                  {funds.map((fund: any) => (
                     <tr key={fund.id} className="border-t border-gray-100">
                       <td className="py-2 font-medium">{fund.name}</td>
                       <td className="py-2 font-mono text-xs">{fund.id}</td>
@@ -183,23 +183,23 @@ export default async function DiagnosticsPage() {
           <div className="p-6">
             {equityAccount ? (
               <div className="space-y-2 text-sm">
-                <p><strong>Account Number:</strong> {equityAccount.account_number}</p>
-                <p><strong>Account Name:</strong> {equityAccount.name}</p>
+                <p><strong>Account Number:</strong> {(equityAccount as any).account_number}</p>
+                <p><strong>Account Name:</strong> {(equityAccount as any).name}</p>
                 <p><strong>Account Type:</strong> 
                   <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                    equityAccount.account_type === 'Equity' 
+                    (equityAccount as any).account_type === 'Equity' 
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {equityAccount.account_type}
+                    {(equityAccount as any).account_type}
                   </span>
                 </p>
-                <p><strong>Active:</strong> {equityAccount.is_active ? '✓ Yes' : '✗ No'}</p>
-                <p><strong>Account ID:</strong> <code className="text-xs bg-gray-100 px-2 py-1 rounded">{equityAccount.id}</code></p>
-                {equityAccount.account_type !== 'Equity' && (
+                <p><strong>Active:</strong> {(equityAccount as any).is_active ? '✓ Yes' : '✗ No'}</p>
+                <p><strong>Account ID:</strong> <code className="text-xs bg-gray-100 px-2 py-1 rounded">{(equityAccount as any).id}</code></p>
+                {(equityAccount as any).account_type !== 'Equity' && (
                   <div className="mt-4 bg-red-50 border border-red-200 rounded p-3">
                     <p className="text-red-800">
-                      <strong>⚠️ Problem Found:</strong> Account 3100 is type "{equityAccount.account_type}" but should be type "Equity"!
+                      <strong>⚠️ Problem Found:</strong> Account 3100 is type "{(equityAccount as any).account_type}" but should be type "Equity"!
                     </p>
                   </div>
                 )}
@@ -230,7 +230,7 @@ export default async function DiagnosticsPage() {
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {journalEntries.map((entry) => (
+                  {journalEntries.map((entry: any) => (
                     <tr key={entry.id} className="border-t border-gray-100">
                       <td className="py-2">{entry.entry_date}</td>
                       <td className="py-2">{entry.description}</td>

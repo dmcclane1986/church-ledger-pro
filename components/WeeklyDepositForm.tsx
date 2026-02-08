@@ -380,8 +380,8 @@ export default function WeeklyDepositForm({
         missionsAmount: missionsTotal,
         missionsFundId: missionsFundId || undefined,
         designatedItems: designatedItems
-          .filter((item) => parseFloat(item.amount) > 0)
-          .map((item) => ({
+          .filter((item: any) => parseFloat(item.amount) > 0)
+          .map((item: any) => ({
             accountId: item.accountId,
             fundId: item.fundId,
             amount: parseFloat(item.amount),
@@ -1120,7 +1120,7 @@ export default function WeeklyDepositForm({
           <p className="text-sm text-gray-500 text-center py-4">No designated items added yet</p>
         ) : (
           <div className="space-y-3">
-            {designatedItems.map((item) => (
+            {designatedItems.map((item: any) => (
               <div key={item.id} className="bg-white p-3 rounded border border-gray-200">
                 <div className="grid md:grid-cols-2 gap-2 mb-2">
                   <div>

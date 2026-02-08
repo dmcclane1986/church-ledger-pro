@@ -47,7 +47,7 @@ export default function BudgetPlanner({
     const inputs: BudgetInput[] = []
 
     // Add income accounts
-    historicalData.income.forEach((item) => {
+    historicalData.income.forEach((item: any) => {
       inputs.push({
         account_id: item.account_id,
         account_number: item.account_number,
@@ -59,7 +59,7 @@ export default function BudgetPlanner({
     })
 
     // Add expense accounts
-    historicalData.expenses.forEach((item) => {
+    historicalData.expenses.forEach((item: any) => {
       inputs.push({
         account_id: item.account_id,
         account_number: item.account_number,
@@ -76,11 +76,11 @@ export default function BudgetPlanner({
   // Calculate totals
   const totals = useMemo(() => {
     const incomeTotal = budgetInputs
-      .filter((item) => item.account_type === 'Income')
+      .filter((item: any) => item.account_type === 'Income')
       .reduce((sum, item) => sum + item.budgeted_amount, 0)
 
     const expenseTotal = budgetInputs
-      .filter((item) => item.account_type === 'Expense')
+      .filter((item: any) => item.account_type === 'Expense')
       .reduce((sum, item) => sum + item.budgeted_amount, 0)
 
     const projectedNet = incomeTotal - expenseTotal
@@ -135,7 +135,7 @@ export default function BudgetPlanner({
 
   const handleBudgetChange = (accountId: string, value: number) => {
     setBudgetInputs((prev) =>
-      prev.map((item) =>
+      prev.map((item: any) =>
         item.account_id === accountId
           ? { ...item, budgeted_amount: value }
           : item
@@ -145,7 +145,7 @@ export default function BudgetPlanner({
 
   const handleGlobalAdjust = (type: 'income' | 'expense' | 'all', percentage: number) => {
     setBudgetInputs((prev) =>
-      prev.map((item) => {
+      prev.map((item: any) => {
         if (type === 'all') {
           return {
             ...item,
@@ -201,8 +201,8 @@ export default function BudgetPlanner({
     }
   }
 
-  const incomeAccounts = budgetInputs.filter((item) => item.account_type === 'Income')
-  const expenseAccounts = budgetInputs.filter((item) => item.account_type === 'Expense')
+  const incomeAccounts = budgetInputs.filter((item: any) => item.account_type === 'Income')
+  const expenseAccounts = budgetInputs.filter((item: any) => item.account_type === 'Expense')
 
   return (
     <div className="space-y-6">
@@ -349,7 +349,7 @@ export default function BudgetPlanner({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {incomeAccounts.map((item) => {
+              {incomeAccounts.map((item: any) => {
                 const change = item.budgeted_amount - item.last_year_actual
                 const changePercent = item.last_year_actual !== 0
                   ? ((change / item.last_year_actual) * 100).toFixed(1)
@@ -432,7 +432,7 @@ export default function BudgetPlanner({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {expenseAccounts.map((item) => {
+              {expenseAccounts.map((item: any) => {
                 const change = item.budgeted_amount - item.last_year_actual
                 const changePercent = item.last_year_actual !== 0
                   ? ((change / item.last_year_actual) * 100).toFixed(1)

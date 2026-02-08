@@ -24,7 +24,7 @@ export async function getFunds(): Promise<{
   try {
     const supabase = await createServerClient()
 
-    const { data: funds, error: fundsError } = await supabase
+    const { data: funds, error: fundsError } = await (supabase as any)
       .from('funds')
       .select('*')
       .order('name', { ascending: true })
@@ -60,7 +60,7 @@ export async function getAllFunds(): Promise<{
     const supabase = await createServerClient()
 
     // Get all funds
-    const { data: funds, error: fundsError } = await supabase
+    const { data: funds, error: fundsError } = await (supabase as any)
       .from('funds')
       .select('*')
       .order('name', { ascending: true })
@@ -71,7 +71,7 @@ export async function getAllFunds(): Promise<{
     }
 
     // Get transaction counts for each fund
-    const { data: usageCounts, error: usageError } = await supabase
+    const { data: usageCounts, error: usageError } = await (supabase as any)
       .from('ledger_lines')
       .select('fund_id')
 
@@ -82,7 +82,7 @@ export async function getAllFunds(): Promise<{
 
     // Count transactions per fund
     const transactionCounts = new Map<string, number>()
-    usageCounts?.forEach(line => {
+    usageCounts?.forEach((line: any) => {
       transactionCounts.set(
         line.fund_id, 
         (transactionCounts.get(line.fund_id) || 0) + 1
@@ -90,7 +90,7 @@ export async function getAllFunds(): Promise<{
     })
 
     // Combine funds with usage info
-    const fundsWithUsage: FundWithUsage[] = funds.map(fund => ({
+    const fundsWithUsage: FundWithUsage[] = funds.map((fund: any) => ({
       ...fund,
       transaction_count: transactionCounts.get(fund.id) || 0,
       can_delete: (transactionCounts.get(fund.id) || 0) === 0
@@ -120,7 +120,7 @@ export async function createFund(
     const supabase = await createServerClient()
 
     // Check if fund name already exists
-    const { data: existing, error: checkError } = await supabase
+    const { data: existing, error: checkError } = await (supabase as any)
       .from('funds')
       .select('id')
       .eq('name', fund.name)
@@ -134,7 +134,7 @@ export async function createFund(
     }
 
     // Create the fund
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('funds')
       .insert(fund)
       .select()
@@ -171,7 +171,7 @@ export async function updateFund(
 
     // If updating name, check if it already exists
     if (updates.name !== undefined) {
-      const { data: existing, error: checkError } = await supabase
+      const { data: existing, error: checkError } = await (supabase as any)
         .from('funds')
         .select('id')
         .eq('name', updates.name)
@@ -187,7 +187,7 @@ export async function updateFund(
     }
 
     // Update the fund
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('funds')
       .update({
         ...updates,
@@ -227,7 +227,7 @@ export async function deleteFund(fundId: string): Promise<{
     const supabase = await createServerClient()
 
     // Check if fund is used in any transactions
-    const { data: usage, error: usageError } = await supabase
+    const { data: usage, error: usageError } = await (supabase as any)
       .from('ledger_lines')
       .select('id')
       .eq('fund_id', fundId)
@@ -246,7 +246,7 @@ export async function deleteFund(fundId: string): Promise<{
     }
 
     // Delete the fund
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('funds')
       .delete()
       .eq('id', fundId)

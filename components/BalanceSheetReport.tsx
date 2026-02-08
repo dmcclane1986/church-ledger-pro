@@ -82,9 +82,9 @@ export default function BalanceSheetReport() {
         foot: [['Total Fund Balances', '', pdfFormatCurrency(data.totalFundBalances)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [41, 128, 185],
+          fillColor: [41, 128, 185] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -108,9 +108,9 @@ export default function BalanceSheetReport() {
         foot: [['Total Assets', pdfFormatCurrency(data.totalAssets)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [52, 152, 219],
+          fillColor: [52, 152, 219] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -134,9 +134,9 @@ export default function BalanceSheetReport() {
         foot: [['Total Liabilities', pdfFormatCurrency(data.totalLiabilities)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [231, 76, 60],
+          fillColor: [231, 76, 60] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       
@@ -148,7 +148,7 @@ export default function BalanceSheetReport() {
       doc.text('NET ASSETS (EQUITY)', 20, currentY)
       currentY += 8
       
-      const equityData = data.equity.map(account => [
+      const equityData = data.netAssets.map(account => [
         account.account_name,
         pdfFormatCurrency(account.balance)
       ])
@@ -157,12 +157,12 @@ export default function BalanceSheetReport() {
         startY: currentY,
         head: [['Account', 'Amount']],
         body: equityData,
-        foot: [['Total Net Assets', pdfFormatCurrency(data.totalEquity)]],
+        foot: [['Total Net Assets', pdfFormatCurrency(data.totalNetAssets)]],
         ...defaultTableStyles,
         footStyles: {
-          fillColor: [46, 204, 113],
+          fillColor: [46, 204, 113] as [number, number, number],
           textColor: 255,
-          fontStyle: 'bold',
+          fontStyle: 'bold' as const,
         }
       })
       

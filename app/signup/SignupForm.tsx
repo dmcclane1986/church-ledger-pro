@@ -48,7 +48,7 @@ function SubmitButton() {
 
 export default function SignupForm() {
   const router = useRouter()
-  const [state, formAction] = useActionState(signup, { error: null })
+  const [state, formAction] = useActionState(signup, { error: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
