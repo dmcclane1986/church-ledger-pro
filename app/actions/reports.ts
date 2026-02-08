@@ -119,14 +119,50 @@ export async function fetchBalanceSheet(): Promise<{
       credit_total: number
     }>()
 
+    // Create a separate map for fund balance calculation
+    const fundBalanceMap = new Map<string, {
+      fund_id: string
+      fund_name: string
+      is_restricted: boolean
+      balance: number
+    }>()
+
     for (const line of ledgerLines || []) {
       const account = line.chart_of_accounts as any
       const fund = line.funds as any
       
       if (!account || !fund) continue
 
-      // Track by fund
+      // Track by fund with proper account type handling
       const fundId = fund.id
+      if (!fundBalanceMap.has(fundId)) {
+        fundBalanceMap.set(fundId, {
+          fund_id: fundId,
+          fund_name: fund.name,
+          is_restricted: fund.is_restricted,
+          balance: 0,
+        })
+      }
+      const fundBalance = fundBalanceMap.get(fundId)!
+      
+      // Calculate fund balance based on account type
+      // Exclude Equity accounts to properly handle opening balance entries
+      if (account.account_type === 'Asset') {
+        // Assets: Debit increases fund resources
+        fundBalance.balance += line.debit - line.credit
+      } else if (account.account_type === 'Liability') {
+        // Liabilities: Credit increases what fund owes (decreases net position)
+        fundBalance.balance -= line.credit - line.debit
+      } else if (account.account_type === 'Income') {
+        // Income: Credit increases fund balance
+        fundBalance.balance += line.credit - line.debit
+      } else if (account.account_type === 'Expense') {
+        // Expenses: Debit decreases fund balance
+        fundBalance.balance -= line.debit - line.credit
+      }
+      // Equity accounts are excluded from fund balance calculation
+
+      // Track by fund (for legacy compatibility)
       if (!fundMap.has(fundId)) {
         fundMap.set(fundId, {
           fund_id: fundId,
@@ -157,30 +193,27 @@ export async function fetchBalanceSheet(): Promise<{
       accountEntry.credit_total += line.credit
     }
 
-    // Calculate fund balances (Net: Credits - Debits represents net worth)
+    // Calculate fund balances using the properly calculated balances
     const fundBalances: FundBalance[] = []
     let totalFundBalances = 0
 
     // Track fund balances that will be added to equity accounts
     const fundBalancesToEquity = new Map<string, number>()
 
-    for (const fund of fundMap.values()) {
-      // Fund balance = Credits - Debits (positive means net assets)
-      const balance = fund.credit_total - fund.debit_total
-      
+    for (const fund of fundBalanceMap.values()) {
       fundBalances.push({
         fund_id: fund.fund_id,
         fund_name: fund.fund_name,
         is_restricted: fund.is_restricted,
-        balance: balance,
+        balance: fund.balance,
       })
-      totalFundBalances += balance
+      totalFundBalances += fund.balance
 
       // If this fund is mapped to an equity account, track it
       const mappedEquityAccountId = fundToEquityMap.get(fund.fund_id)
       if (mappedEquityAccountId) {
         const current = fundBalancesToEquity.get(mappedEquityAccountId) || 0
-        fundBalancesToEquity.set(mappedEquityAccountId, current + balance)
+        fundBalancesToEquity.set(mappedEquityAccountId, current + fund.balance)
       }
     }
 
@@ -809,10 +842,13 @@ export interface FundSummaryData {
 export async function fetchFundSummary(
   startDate: string,
   endDate: string
-): Promise<{ success: boolean; data?: FundSummaryData[]; error?: string }> {
+): Promise<{ success: boolean; data?: FundSummaryData[]; error?: string; debug?: string[] }> {
   const supabase = await createServerClient()
+  const debugLog: string[] = []
 
   try {
+    debugLog.push(`Start date: ${startDate}, End date: ${endDate}`)
+    console.log('[fetchFundSummary] Start date:', startDate, 'End date:', endDate)
     // Get all funds
     const { data: funds, error: fundsError } = await (supabase as any)
       .from('funds')
@@ -822,12 +858,16 @@ export async function fetchFundSummary(
 
     if (fundsError) {
       console.error('Error fetching funds:', fundsError)
-      return { success: false, error: fundsError.message }
+      debugLog.push(`ERROR fetching funds: ${fundsError.message}`)
+      return { success: false, error: fundsError.message, debug: debugLog }
     }
 
     if (!funds || funds.length === 0) {
-      return { success: true, data: [] }
+      debugLog.push('No funds found')
+      return { success: true, data: [], debug: debugLog }
     }
+    
+    debugLog.push(`Found ${funds.length} funds`)
 
     // Get all ledger lines with journal entry dates
     const { data: ledgerLines, error: ledgerError } = await (supabase as any)
@@ -894,10 +934,16 @@ export async function fetchFundSummary(
 
       // Filter ledger lines for this fund
       const fundLines = (ledgerLines || []).filter((line: any) => line.fund_id === fund.id)
+      
+      debugLog.push(`\nProcessing ${fund.name}: ${fundLines.length} ledger lines`)
+      console.log(`[fetchFundSummary] Processing fund: ${fund.name}, Lines count: ${fundLines.length}`)
 
       // Track which accounts have activity in this fund during the period
       const accountsWithActivity = new Set<string>()
 
+      // Calculate balance through end date, then subtract period activity to get beginning
+      let balanceThroughEndDate = 0
+      
       for (const line of fundLines) {
         const account = line.chart_of_accounts as any
         const journalEntry = (line.journal_entries as any)
@@ -905,17 +951,32 @@ export async function fetchFundSummary(
 
         if (!entryDate) continue
 
-        const lineDate = new Date(entryDate)
-        const start = new Date(startDate)
-        const end = new Date(endDate)
+        // Compare dates as strings to avoid timezone issues
+        // Dates in DB are stored as YYYY-MM-DD format
+        const lineDateStr = entryDate.split('T')[0] // Remove time if present
+        const startDateStr = startDate.split('T')[0]
+        const endDateStr = endDate.split('T')[0]
 
-        // Calculate beginning balance (everything before start date)
-        if (lineDate < start) {
-          beginningBalance += line.credit - line.debit
+        // Process all transactions up to end date (excluding Equity)
+        if (lineDateStr <= endDateStr) {
+          if (account?.account_type === 'Asset') {
+            // Assets: Debit increases, Credit decreases
+            balanceThroughEndDate += line.debit - line.credit
+          } else if (account?.account_type === 'Liability') {
+            // Liabilities: Credit increases (decreases net position)
+            balanceThroughEndDate -= line.credit - line.debit
+          } else if (account?.account_type === 'Income') {
+            // Income: Credit increases
+            balanceThroughEndDate += line.credit - line.debit
+          } else if (account?.account_type === 'Expense') {
+            // Expenses: Debit decreases balance
+            balanceThroughEndDate -= line.debit - line.credit
+          }
+          // Note: Equity accounts are excluded
         }
 
-        // Calculate income and expenses within the period
-        if (lineDate >= start && lineDate <= end) {
+        // Calculate income and expenses within the period (for display)
+        if (lineDateStr >= startDateStr && lineDateStr <= endDateStr) {
           if (account?.account_type === 'Income') {
             // Income increases with credits
             totalIncome += line.credit
@@ -927,9 +988,39 @@ export async function fetchFundSummary(
             totalExpenses -= line.credit
             accountsWithActivity.add(account.id)
           }
-          
-          // Add to ending balance
-          endingBalance += line.credit - line.debit
+        }
+
+        // Calculate beginning balance (everything before start date)
+        if (lineDateStr < startDateStr) {
+          if (account?.account_type === 'Asset') {
+            const contribution = line.debit - line.credit
+            if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Asset) D:${line.debit} C:${line.credit} = +${contribution}`)
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Asset), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
+          } else if (account?.account_type === 'Liability') {
+            const contribution = -(line.credit - line.debit)
+            if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Liability) D:${line.debit} C:${line.credit} = +${contribution}`)
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Liability), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
+          } else if (account?.account_type === 'Income') {
+            const contribution = line.credit - line.debit
+            if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Income) D:${line.debit} C:${line.credit} = +${contribution}`)
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Income), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
+          } else if (account?.account_type === 'Expense') {
+            const contribution = -(line.debit - line.credit)
+            if (contribution !== 0) {
+              debugLog.push(`  BB: ${lineDateStr} ${account?.name} (Expense) D:${line.debit} C:${line.credit} = +${contribution}`)
+              console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (Expense), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+            }
+            beginningBalance += contribution
+          }
         }
       }
 
@@ -954,8 +1045,10 @@ export async function fetchFundSummary(
         }
       }
 
-      // Ending balance = beginning + income - expenses
-      endingBalance = beginningBalance + totalIncome - totalExpenses
+      // Ending balance is the cumulative balance through the end date
+      endingBalance = balanceThroughEndDate
+      
+      debugLog.push(`  RESULT: BB=$${beginningBalance.toFixed(2)} Income=$${totalIncome.toFixed(2)} Exp=$${totalExpenses.toFixed(2)} End=$${endingBalance.toFixed(2)}`)
 
       fundSummaries.push({
         fund_id: fund.id,
@@ -970,10 +1063,12 @@ export async function fetchFundSummary(
       })
     }
 
-    return { success: true, data: fundSummaries }
+    debugLog.push(`\n=== FINAL: ${fundSummaries.length} fund summaries created ===`)
+    return { success: true, data: fundSummaries, debug: debugLog }
   } catch (error) {
     console.error('Unexpected error:', error)
-    return { success: false, error: 'An unexpected error occurred' }
+    debugLog.push(`ERROR: ${error}`)
+    return { success: false, error: 'An unexpected error occurred', debug: debugLog }
   }
 }
 
