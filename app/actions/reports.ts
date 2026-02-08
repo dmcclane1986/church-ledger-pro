@@ -910,8 +910,23 @@ export async function fetchFundSummary(
         const end = new Date(endDate)
 
         // Calculate beginning balance (everything before start date)
+        // Exclude Equity accounts from beginning balance to properly handle opening balance entries
         if (lineDate < start) {
-          beginningBalance += line.credit - line.debit
+          if (account?.account_type === 'Asset') {
+            // Assets: Debit increases, Credit decreases
+            beginningBalance += line.debit - line.credit
+          } else if (account?.account_type === 'Liability') {
+            // Liabilities: Credit increases, Debit decreases
+            beginningBalance += line.credit - line.debit
+          } else if (account?.account_type === 'Income') {
+            // Income: Credit increases
+            beginningBalance += line.credit - line.debit
+          } else if (account?.account_type === 'Expense') {
+            // Expenses: Debit increases (reduces fund balance)
+            beginningBalance -= line.debit - line.credit
+          }
+          // Note: Equity accounts are excluded from fund balance calculation
+          // because they represent the source of funds, not operational activity
         }
 
         // Calculate income and expenses within the period
@@ -927,9 +942,6 @@ export async function fetchFundSummary(
             totalExpenses -= line.credit
             accountsWithActivity.add(account.id)
           }
-          
-          // Add to ending balance
-          endingBalance += line.credit - line.debit
         }
       }
 
