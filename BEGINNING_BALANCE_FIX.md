@@ -80,13 +80,46 @@ The fix ensures that:
 
 This aligns with proper fund accounting principles where the fund balance represents the net resources available in each fund for operational purposes.
 
+## Additional Fix - Opening Balances Within Report Period
+
+### Secondary Issue Discovered
+If the opening balance entry date was **on or after** the report start date (e.g., January 1, 2026), it wasn't showing in the Fund Summary because:
+- It wasn't before the start date (so not in "beginning balance")
+- Asset account transactions during the period weren't being processed (only Income/Expense were counted)
+
+### Solution - Enhanced Calculation
+Modified the Fund Summary calculation to:
+1. Calculate total balance through the end date for ALL account types (Assets, Liabilities, Income, Expenses)
+2. This ensures opening balance entries work correctly regardless of date
+3. Properly handles fund transfers and other Asset/Liability changes during the period
+
+## How to Verify the Fix Works
+
+### Step 1: Check Your Opening Balance Date
+Look at when you created your opening balance entry. The fix now handles both scenarios:
+- **Before report start date**: Shows in "Beginning Balance" column ✅
+- **On or after report start date**: Properly included in "Ending Balance" ✅
+
+### Step 2: Refresh the Application
+Since this is a server-side fix, you may need to:
+1. Hard refresh your browser (Ctrl+Shift+R or Cmd+Shift+R)
+2. Or simply reload the Fund Summary Report page
+
+### Step 3: Verify the Numbers
+1. Go to **Reports → Fund Summary**
+2. Check that:
+   - Beginning Balance shows correct amount (if opening balance date < start date)
+   - Ending Balance reflects the opening balance (regardless of date)
+   - Income and Expenses show only actual income/expenses (not the opening balance)
+
 ## Commits
 - `576385f` - Fix beginning balance calculation in Fund Summary Report
 - `748b8b2` - Fix Balance Sheet fund balance calculation to properly handle opening balances
+- `eb6ca58` - Fix Fund Summary to handle opening balances within report period
 
 ## Testing Recommendations
-1. Create a test opening balance entry for each fund
-2. Run Fund Summary Report with a date range including the opening balance date
-3. Verify beginning balances display correctly
+1. Create a test opening balance entry for each fund (with various dates)
+2. Run Fund Summary Report with different date ranges
+3. Verify balances display correctly regardless of opening balance date
 4. Check Balance Sheet to ensure fund balances match
 5. Review Dashboard YTD Fund Activity for accuracy
