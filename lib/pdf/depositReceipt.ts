@@ -25,6 +25,8 @@ export interface CheckItem {
 export interface FundAllocation {
   fundName: string
   amount: number
+  cashAmount?: number
+  checkAmount?: number
   isRestricted?: boolean
 }
 
@@ -40,34 +42,115 @@ export interface DepositData {
   looseCash: number
   fundAllocations: FundAllocation[]
   finalTotal: number
+  logoUrl?: string | null
+  churchName?: string
+  churchAddress?: string
 }
 
-export function generateDepositReceiptPDF(data: DepositData, churchName: string = 'Church Name') {
+export function generateDepositReceiptPDF(data: DepositData) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'letter',
   })
 
-  let yPosition = 20
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 20
+  let yPosition = margin
 
-  // Header
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text(churchName, 105, yPosition, { align: 'center' })
-  
+  // Header with Logo and Church Name
+  doc.setFont('times', 'normal')
+  const churchName = data.churchName || 'Church Ledger Pro'
+
+  try {
+    if (data.logoUrl) {
+      const logoSize = 20 // 20mm square
+      
+      // Add logo on the left
+      doc.addImage(data.logoUrl, 'JPEG', margin, yPosition, logoSize, logoSize)
+      
+      // Church name next to logo
+      const textStartX = margin + logoSize + 5
+      doc.setFontSize(16)
+      doc.setFont('times', 'bold')
+      doc.text(churchName, textStartX, yPosition + 5)
+      
+      // Church address if provided
+      if (data.churchAddress) {
+        doc.setFontSize(9)
+        doc.setFont('times', 'normal')
+        const addressLines = data.churchAddress.split('\n')
+        let addressY = yPosition + 11
+        addressLines.forEach(line => {
+          if (line.trim()) {
+            doc.text(line, textStartX, addressY)
+            addressY += 4
+          }
+        })
+        yPosition += Math.max(logoSize, addressY - yPosition) + 5
+      } else {
+        yPosition += logoSize + 5
+      }
+    } else {
+      // Fallback without logo
+      doc.setFontSize(16)
+      doc.setFont('times', 'bold')
+      doc.text(churchName, margin, yPosition)
+      yPosition += 7
+
+      if (data.churchAddress) {
+        doc.setFontSize(9)
+        doc.setFont('times', 'normal')
+        const addressLines = data.churchAddress.split('\n')
+        addressLines.forEach(line => {
+          if (line.trim()) {
+            doc.text(line, margin, yPosition)
+            yPosition += 4
+          }
+        })
+      }
+      yPosition += 5
+    }
+  } catch (error) {
+    console.warn('Could not load logo for PDF, using text-only header:', error)
+    
+    // Fallback header
+    doc.setFontSize(16)
+    doc.setFont('times', 'bold')
+    doc.text(churchName, margin, yPosition)
+    yPosition += 7
+
+    if (data.churchAddress) {
+      doc.setFontSize(9)
+      doc.setFont('times', 'normal')
+      const addressLines = data.churchAddress.split('\n')
+      addressLines.forEach(line => {
+        if (line.trim()) {
+          doc.text(line, margin, yPosition)
+          yPosition += 4
+        }
+      })
+    }
+    yPosition += 5
+  }
+
+  // Horizontal line
+  doc.setLineWidth(0.5)
+  doc.line(margin, yPosition, pageWidth - margin, yPosition)
   yPosition += 8
+
+  // Report Title
   doc.setFontSize(14)
-  doc.text('Weekly Deposit Summary', 105, yPosition, { align: 'center' })
+  doc.setFont('times', 'bold')
+  doc.text('Weekly Deposit Summary', margin, yPosition)
+  yPosition += 6
   
-  yPosition += 10
+  // Date and Description
   doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Date: ${formatDate(data.date)}`, 20, yPosition)
-  
-  
+  doc.setFont('times', 'normal')
+  doc.text(`Date: ${formatDate(data.date)}`, margin, yPosition)
   yPosition += 5
-  doc.text(`Description: ${data.description}`, 20, yPosition)
+  doc.text(`Description: ${data.description}`, margin, yPosition)
   
   yPosition += 10
 
@@ -121,8 +204,46 @@ export function generateDepositReceiptPDF(data: DepositData, churchName: string 
   doc.text('Cash Total:', 20, leftSideY)
   doc.text(formatCurrency(data.totalCash), 100, leftSideY, { align: 'right' })
 
-  // RIGHT SIDE: Check Listing
+  // RIGHT SIDE: Method of Collection (above Check Listing)
   let rightSideY = sectionStartY
+  
+  // Method of Collection
+  if (data.totalEnvelopes > 0 || data.looseCash > 0 || data.totalChecks > 0) {
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Method of Collection', 110, rightSideY)
+    rightSideY += 5
+
+    const methodData = []
+    if (data.totalEnvelopes > 0) {
+      methodData.push(['Envelope Cash', formatCurrency(data.totalEnvelopes)])
+    }
+    if (data.looseCash > 0) {
+      methodData.push(['Loose Cash', formatCurrency(data.looseCash)])
+    }
+    if (data.totalChecks > 0) {
+      methodData.push(['Total Checks', formatCurrency(data.totalChecks)])
+    }
+
+    if (methodData.length > 0) {
+      autoTable(doc, {
+        startY: rightSideY,
+        head: [['Description', 'Amount']],
+        body: methodData,
+        theme: 'grid',
+        headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
+        styles: { fontSize: 9, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30, halign: 'right' },
+        },
+        margin: { left: 110, right: 20 },
+      })
+      rightSideY = (doc as any).lastAutoTable.finalY + 10
+    }
+  }
+  
+  // Check Listing
   
   if (data.checks.length > 0) {
     doc.setFontSize(12)
@@ -158,59 +279,43 @@ export function generateDepositReceiptPDF(data: DepositData, churchName: string 
     rightSideY += 10
   }
 
-  // Method of Collection (right side, under checks)
-  if (data.totalEnvelopes > 0 || data.looseCash > 0) {
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Method of Collection', 110, rightSideY)
-    rightSideY += 5
-
-    const otherData = []
-    if (data.totalEnvelopes > 0) {
-      otherData.push(['Envelope Cash', formatCurrency(data.totalEnvelopes)])
-    }
-    if (data.looseCash > 0) {
-      otherData.push(['Loose Cash', formatCurrency(data.looseCash)])
-    }
-
-    autoTable(doc, {
-      startY: rightSideY,
-      head: [['Description', 'Amount']],
-      body: otherData,
-      theme: 'grid',
-      headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-      styles: { fontSize: 9, cellPadding: 2 },
-      columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 30, halign: 'right' },
-      },
-      margin: { left: 110, right: 20 },
-    })
-    rightSideY = (doc as any).lastAutoTable.finalY + 10
-  }
-
-  // Fund Allocation (right side, under method of collection)
+  // Deposit Information (right side, under checks)
   if (data.fundAllocations.length > 0) {
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
-    doc.text('Fund Allocation', 110, rightSideY)
+    doc.text('Deposit Information', 110, rightSideY)
     rightSideY += 5
 
-    const fundData = data.fundAllocations.map((fund) => [
-      fund.fundName + (fund.isRestricted ? ' (Restricted)' : ''),
-      formatCurrency(fund.amount),
-    ])
+    // Calculate total deposit for percentage calculations
+    const totalDeposit = data.totalCash + data.totalChecks
+    const totalCash = data.totalEnvelopes + data.looseCash
+
+    const fundData = data.fundAllocations.map((fund) => {
+      // Calculate cash and check amounts for each fund based on percentage
+      const fundPercentage = totalDeposit > 0 ? fund.amount / totalDeposit : 0
+      const fundCash = fund.cashAmount !== undefined ? fund.cashAmount : totalCash * fundPercentage
+      const fundCheck = fund.checkAmount !== undefined ? fund.checkAmount : data.totalChecks * fundPercentage
+
+      return [
+        fund.fundName + (fund.isRestricted ? ' (Restricted)' : ''),
+        formatCurrency(fundCash),
+        formatCurrency(fundCheck),
+        formatCurrency(fund.amount),
+      ]
+    })
 
     autoTable(doc, {
       startY: rightSideY,
-      head: [['Fund', 'Amount']],
+      head: [['Fund', 'Cash', 'Check', 'Total']],
       body: fundData,
       theme: 'grid',
       headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
       styles: { fontSize: 9, cellPadding: 2 },
       columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 35, halign: 'left' },
+        1: { cellWidth: 18, halign: 'right' },
+        2: { cellWidth: 18, halign: 'right' },
+        3: { cellWidth: 18, halign: 'right' },
       },
       margin: { left: 110, right: 20 },
     })

@@ -3,6 +3,7 @@
 import { useState, FormEvent, useEffect, useMemo } from 'react'
 import { recordWeeklyDeposit } from '@/app/actions/transactions'
 import { fetchDonors, createDonor, type Donor } from '@/app/actions/donors'
+import { getChurchSettings, getFormattedChurchAddress } from '@/app/actions/settings'
 import type { Database } from '@/types/database.types'
 import { generateDepositReceiptPDF } from '@/lib/pdf/depositReceipt'
 import { getTodayLocalDate } from '@/lib/utils/date'
@@ -444,41 +445,45 @@ export default function WeeklyDepositForm({
               }
             })
           
-          generateDepositReceiptPDF(
-            {
-              depositId: result.journalEntryId || 'N/A',
-              date,
-              description: description || 'Weekly deposit',
-              cashBreakdown: {
-                hundreds: parseFloat(hundreds) || 0,
-                fifties: parseFloat(fifties) || 0,
-                twenties: parseFloat(twenties) || 0,
-                tens: parseFloat(tens) || 0,
-                fives: parseFloat(fives) || 0,
-                twos: parseFloat(twos) || 0,
-                ones: parseFloat(ones) || 0,
-                dollarCoins: parseFloat(dollarCoins) || 0,
-                halfDollars: parseFloat(halfDollars) || 0,
-                quarters: parseFloat(quarters) || 0,
-                dimes: parseFloat(dimes) || 0,
-                nickels: parseFloat(nickels) || 0,
-                pennies: parseFloat(pennies) || 0,
-              },
-              checks: checks
-                .filter(check => parseFloat(check.amount) > 0)
-                .map(check => ({
-                  referenceNumber: check.referenceNumber,
-                  amount: parseFloat(check.amount),
-                })),
-              totalCash,
-              totalChecks,
-              totalEnvelopes,
-              looseCash: looseCashAmount,
-              fundAllocations,
-              finalTotal: finalTotalDeposit,
+          // Fetch church settings for PDF header
+          const settings = await getChurchSettings()
+          const address = await getFormattedChurchAddress()
+          
+          generateDepositReceiptPDF({
+            depositId: result.journalEntryId || 'N/A',
+            date,
+            description: description || 'Weekly deposit',
+            cashBreakdown: {
+              hundreds: parseFloat(hundreds) || 0,
+              fifties: parseFloat(fifties) || 0,
+              twenties: parseFloat(twenties) || 0,
+              tens: parseFloat(tens) || 0,
+              fives: parseFloat(fives) || 0,
+              twos: parseFloat(twos) || 0,
+              ones: parseFloat(ones) || 0,
+              dollarCoins: parseFloat(dollarCoins) || 0,
+              halfDollars: parseFloat(halfDollars) || 0,
+              quarters: parseFloat(quarters) || 0,
+              dimes: parseFloat(dimes) || 0,
+              nickels: parseFloat(nickels) || 0,
+              pennies: parseFloat(pennies) || 0,
             },
-            'Church Ledger Pro' // You can make this configurable later
-          )
+            checks: checks
+              .filter(check => parseFloat(check.amount) > 0)
+              .map(check => ({
+                referenceNumber: check.referenceNumber,
+                amount: parseFloat(check.amount),
+              })),
+            totalCash,
+            totalChecks,
+            totalEnvelopes,
+            looseCash: looseCashAmount,
+            fundAllocations,
+            finalTotal: finalTotalDeposit,
+            logoUrl: settings.data?.logo_url || null,
+            churchName: settings.data?.organization_name || 'Church Ledger Pro',
+            churchAddress: address || undefined,
+          })
           
           setSuccess(`Deposit Saved & Report Generated! Entry ID: ${result.journalEntryId}`)
         } catch (pdfError) {
