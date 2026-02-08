@@ -931,6 +931,9 @@ export async function fetchFundSummary(
       // Track which accounts have activity in this fund during the period
       const accountsWithActivity = new Set<string>()
 
+      // Calculate balance through end date, then subtract period activity to get beginning
+      let balanceThroughEndDate = 0
+      
       for (const line of fundLines) {
         const account = line.chart_of_accounts as any
         const journalEntry = (line.journal_entries as any)
@@ -942,27 +945,25 @@ export async function fetchFundSummary(
         const start = new Date(startDate)
         const end = new Date(endDate)
 
-        // Calculate beginning balance (everything before start date)
-        // Exclude Equity accounts from beginning balance to properly handle opening balance entries
-        if (lineDate < start) {
+        // Process all transactions up to end date (excluding Equity)
+        if (lineDate <= end) {
           if (account?.account_type === 'Asset') {
             // Assets: Debit increases, Credit decreases
-            beginningBalance += line.debit - line.credit
+            balanceThroughEndDate += line.debit - line.credit
           } else if (account?.account_type === 'Liability') {
-            // Liabilities: Credit increases, Debit decreases
-            beginningBalance += line.credit - line.debit
+            // Liabilities: Credit increases (decreases net position)
+            balanceThroughEndDate -= line.credit - line.debit
           } else if (account?.account_type === 'Income') {
             // Income: Credit increases
-            beginningBalance += line.credit - line.debit
+            balanceThroughEndDate += line.credit - line.debit
           } else if (account?.account_type === 'Expense') {
-            // Expenses: Debit increases (reduces fund balance)
-            beginningBalance -= line.debit - line.credit
+            // Expenses: Debit decreases balance
+            balanceThroughEndDate -= line.debit - line.credit
           }
-          // Note: Equity accounts are excluded from fund balance calculation
-          // because they represent the source of funds, not operational activity
+          // Note: Equity accounts are excluded
         }
 
-        // Calculate income and expenses within the period
+        // Calculate income and expenses within the period (for display)
         if (lineDate >= start && lineDate <= end) {
           if (account?.account_type === 'Income') {
             // Income increases with credits
@@ -974,6 +975,19 @@ export async function fetchFundSummary(
             totalExpenses += line.debit
             totalExpenses -= line.credit
             accountsWithActivity.add(account.id)
+          }
+        }
+
+        // Calculate beginning balance (everything before start date)
+        if (lineDate < start) {
+          if (account?.account_type === 'Asset') {
+            beginningBalance += line.debit - line.credit
+          } else if (account?.account_type === 'Liability') {
+            beginningBalance -= line.credit - line.debit
+          } else if (account?.account_type === 'Income') {
+            beginningBalance += line.credit - line.debit
+          } else if (account?.account_type === 'Expense') {
+            beginningBalance -= line.debit - line.credit
           }
         }
       }
@@ -999,8 +1013,8 @@ export async function fetchFundSummary(
         }
       }
 
-      // Ending balance = beginning + income - expenses
-      endingBalance = beginningBalance + totalIncome - totalExpenses
+      // Ending balance is the cumulative balance through the end date
+      endingBalance = balanceThroughEndDate
 
       fundSummaries.push({
         fund_id: fund.id,
