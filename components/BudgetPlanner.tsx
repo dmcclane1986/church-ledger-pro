@@ -214,13 +214,19 @@ export default function BudgetPlanner({
         </p>
         <div className="mt-4 flex gap-4">
           <button
-            onClick={() => router.push(`/admin/budget-planner?year=${planningYear - 1}`)}
+            onClick={() => {
+              router.push(`/admin/budget-planner?year=${planningYear - 1}`)
+              setTimeout(() => router.refresh(), 100)
+            }}
             className="text-blue-600 hover:text-blue-800 font-medium text-sm"
           >
             ← Previous Year
           </button>
           <button
-            onClick={() => router.push(`/admin/budget-planner?year=${planningYear + 1}`)}
+            onClick={() => {
+              router.push(`/admin/budget-planner?year=${planningYear + 1}`)
+              setTimeout(() => router.refresh(), 100)
+            }}
             className="text-blue-600 hover:text-blue-800 font-medium text-sm"
           >
             Next Year →
