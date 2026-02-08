@@ -846,6 +846,7 @@ export async function fetchFundSummary(
   const supabase = await createServerClient()
 
   try {
+    console.log('[fetchFundSummary] Start date:', startDate, 'End date:', endDate)
     // Get all funds
     const { data: funds, error: fundsError } = await (supabase as any)
       .from('funds')
@@ -927,6 +928,8 @@ export async function fetchFundSummary(
 
       // Filter ledger lines for this fund
       const fundLines = (ledgerLines || []).filter((line: any) => line.fund_id === fund.id)
+      
+      console.log(`[fetchFundSummary] Processing fund: ${fund.name}, Lines count: ${fundLines.length}`)
 
       // Track which accounts have activity in this fund during the period
       const accountsWithActivity = new Set<string>()
@@ -980,6 +983,17 @@ export async function fetchFundSummary(
 
         // Calculate beginning balance (everything before start date)
         if (lineDate < start) {
+          const contribution = {
+            'Asset': line.debit - line.credit,
+            'Liability': -(line.credit - line.debit),
+            'Income': line.credit - line.debit,
+            'Expense': -(line.debit - line.credit)
+          }[account?.account_type] || 0
+          
+          if (contribution !== 0) {
+            console.log(`[fetchFundSummary] Fund: ${fund.name}, Date: ${entryDate}, Account: ${account?.name} (${account?.account_type}), Debit: ${line.debit}, Credit: ${line.credit}, Contribution: ${contribution}`)
+          }
+          
           if (account?.account_type === 'Asset') {
             beginningBalance += line.debit - line.credit
           } else if (account?.account_type === 'Liability') {
