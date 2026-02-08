@@ -28,10 +28,15 @@ export default function FundSummaryReport() {
     setLoading(true)
     setError(null)
     
+    console.log('[FundSummaryReport] Loading data for period:', startDate, 'to', endDate)
+    
     const result = await fetchFundSummary(startDate, endDate)
+    
+    console.log('[FundSummaryReport] Result:', result)
     
     if (result.success && result.data) {
       setData(result.data)
+      console.log('[FundSummaryReport] Fund data loaded:', result.data)
     } else {
       setError(result.error || 'Failed to load data')
     }
