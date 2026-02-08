@@ -119,14 +119,50 @@ export async function fetchBalanceSheet(): Promise<{
       credit_total: number
     }>()
 
+    // Create a separate map for fund balance calculation
+    const fundBalanceMap = new Map<string, {
+      fund_id: string
+      fund_name: string
+      is_restricted: boolean
+      balance: number
+    }>()
+
     for (const line of ledgerLines || []) {
       const account = line.chart_of_accounts as any
       const fund = line.funds as any
       
       if (!account || !fund) continue
 
-      // Track by fund
+      // Track by fund with proper account type handling
       const fundId = fund.id
+      if (!fundBalanceMap.has(fundId)) {
+        fundBalanceMap.set(fundId, {
+          fund_id: fundId,
+          fund_name: fund.name,
+          is_restricted: fund.is_restricted,
+          balance: 0,
+        })
+      }
+      const fundBalance = fundBalanceMap.get(fundId)!
+      
+      // Calculate fund balance based on account type
+      // Exclude Equity accounts to properly handle opening balance entries
+      if (account.account_type === 'Asset') {
+        // Assets: Debit increases fund resources
+        fundBalance.balance += line.debit - line.credit
+      } else if (account.account_type === 'Liability') {
+        // Liabilities: Credit increases what fund owes (decreases net position)
+        fundBalance.balance -= line.credit - line.debit
+      } else if (account.account_type === 'Income') {
+        // Income: Credit increases fund balance
+        fundBalance.balance += line.credit - line.debit
+      } else if (account.account_type === 'Expense') {
+        // Expenses: Debit decreases fund balance
+        fundBalance.balance -= line.debit - line.credit
+      }
+      // Equity accounts are excluded from fund balance calculation
+
+      // Track by fund (for legacy compatibility)
       if (!fundMap.has(fundId)) {
         fundMap.set(fundId, {
           fund_id: fundId,
@@ -157,30 +193,27 @@ export async function fetchBalanceSheet(): Promise<{
       accountEntry.credit_total += line.credit
     }
 
-    // Calculate fund balances (Net: Credits - Debits represents net worth)
+    // Calculate fund balances using the properly calculated balances
     const fundBalances: FundBalance[] = []
     let totalFundBalances = 0
 
     // Track fund balances that will be added to equity accounts
     const fundBalancesToEquity = new Map<string, number>()
 
-    for (const fund of fundMap.values()) {
-      // Fund balance = Credits - Debits (positive means net assets)
-      const balance = fund.credit_total - fund.debit_total
-      
+    for (const fund of fundBalanceMap.values()) {
       fundBalances.push({
         fund_id: fund.fund_id,
         fund_name: fund.fund_name,
         is_restricted: fund.is_restricted,
-        balance: balance,
+        balance: fund.balance,
       })
-      totalFundBalances += balance
+      totalFundBalances += fund.balance
 
       // If this fund is mapped to an equity account, track it
       const mappedEquityAccountId = fundToEquityMap.get(fund.fund_id)
       if (mappedEquityAccountId) {
         const current = fundBalancesToEquity.get(mappedEquityAccountId) || 0
-        fundBalancesToEquity.set(mappedEquityAccountId, current + balance)
+        fundBalancesToEquity.set(mappedEquityAccountId, current + fund.balance)
       }
     }
 
