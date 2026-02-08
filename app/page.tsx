@@ -143,7 +143,7 @@ export default async function Home() {
       {/* Quick Actions */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className={`grid gap-4 ${canEdit ? 'md:grid-cols-4' : 'md:grid-cols-1'}`}>
+        <div className={`grid gap-4 ${canEdit ? 'md:grid-cols-5' : 'md:grid-cols-1'}`}>
           {canEdit && (
             <>
               <Link
@@ -166,6 +166,13 @@ export default async function Home() {
               >
                 <div className="text-3xl mb-2">🔄</div>
                 <div className="font-medium text-gray-900">Fund Transfer</div>
+              </Link>
+              <Link
+                href="/transactions/opening-balance"
+                className="bg-white text-center p-4 rounded-lg shadow hover:shadow-md transition"
+              >
+                <div className="text-3xl mb-2">🏦</div>
+                <div className="font-medium text-gray-900">Opening Balance</div>
               </Link>
             </>
           )}
