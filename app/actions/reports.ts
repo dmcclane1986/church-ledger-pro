@@ -944,12 +944,14 @@ export async function fetchFundSummary(
 
         if (!entryDate) continue
 
-        const lineDate = new Date(entryDate)
-        const start = new Date(startDate)
-        const end = new Date(endDate)
+        // Compare dates as strings to avoid timezone issues
+        // Dates in DB are stored as YYYY-MM-DD format
+        const lineDateStr = entryDate.split('T')[0] // Remove time if present
+        const startDateStr = startDate.split('T')[0]
+        const endDateStr = endDate.split('T')[0]
 
         // Process all transactions up to end date (excluding Equity)
-        if (lineDate <= end) {
+        if (lineDateStr <= endDateStr) {
           if (account?.account_type === 'Asset') {
             // Assets: Debit increases, Credit decreases
             balanceThroughEndDate += line.debit - line.credit
@@ -967,7 +969,7 @@ export async function fetchFundSummary(
         }
 
         // Calculate income and expenses within the period (for display)
-        if (lineDate >= start && lineDate <= end) {
+        if (lineDateStr >= startDateStr && lineDateStr <= endDateStr) {
           if (account?.account_type === 'Income') {
             // Income increases with credits
             totalIncome += line.credit
@@ -982,7 +984,7 @@ export async function fetchFundSummary(
         }
 
         // Calculate beginning balance (everything before start date)
-        if (lineDate < start) {
+        if (lineDateStr < startDateStr) {
           if (account?.account_type === 'Asset') {
             const contribution = line.debit - line.credit
             if (contribution !== 0) {

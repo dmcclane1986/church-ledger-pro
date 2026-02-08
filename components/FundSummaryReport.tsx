@@ -19,6 +19,7 @@ export default function FundSummaryReport() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -27,16 +28,25 @@ export default function FundSummaryReport() {
   const loadData = async () => {
     setLoading(true)
     setError(null)
-    
-    console.log('[FundSummaryReport] Loading data for period:', startDate, 'to', endDate)
+    setDebugInfo(null)
     
     const result = await fetchFundSummary(startDate, endDate)
     
-    console.log('[FundSummaryReport] Result:', result)
-    
     if (result.success && result.data) {
       setData(result.data)
-      console.log('[FundSummaryReport] Fund data loaded:', result.data)
+      
+      // Create debug info
+      const debugLines: string[] = []
+      debugLines.push(`Report Period: ${startDate} to ${endDate}`)
+      debugLines.push(`Funds Found: ${result.data.length}`)
+      result.data.forEach(fund => {
+        debugLines.push(`\n${fund.fund_name}:`)
+        debugLines.push(`  - Beginning Balance: $${fund.beginning_balance.toFixed(2)}`)
+        debugLines.push(`  - Income: $${fund.total_income.toFixed(2)}`)
+        debugLines.push(`  - Expenses: $${fund.total_expenses.toFixed(2)}`)
+        debugLines.push(`  - Ending Balance: $${fund.ending_balance.toFixed(2)}`)
+      })
+      setDebugInfo(debugLines.join('\n'))
     } else {
       setError(result.error || 'Failed to load data')
     }
@@ -243,6 +253,14 @@ export default function FundSummaryReport() {
           </div>
         </div>
       </div>
+
+      {/* Debug Info */}
+      {debugInfo && !loading && (
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+          <h3 className="text-sm font-semibold text-yellow-900 mb-2">🔍 Debug Information</h3>
+          <pre className="text-xs text-yellow-800 font-mono whitespace-pre-wrap">{debugInfo}</pre>
+        </div>
+      )}
 
       {/* Print Button */}
       {data.length > 0 && !loading && !error && (
