@@ -232,6 +232,40 @@ export default function QuarterlyIncomeStatementReport() {
         margin: { left: 20, right: 20 }
       })
       
+      // Check if we need a new page for signature section
+      currentY = (doc as any).lastAutoTable.finalY + 20
+      if (currentY > 240) {
+        doc.addPage()
+        currentY = 20
+      }
+      
+      // Treasurer Signature Section
+      doc.setFontSize(11)
+      doc.setFont('times', 'bold')
+      doc.text('Treasurer Certification', 20, currentY)
+      currentY += 8
+      
+      doc.setFontSize(10)
+      doc.setFont('times', 'normal')
+      doc.text('I certify that the information contained in this quarterly report is accurate', 20, currentY)
+      currentY += 6
+      doc.text('to the best of my knowledge.', 20, currentY)
+      currentY += 15
+      
+      // Signature line
+      doc.setFontSize(10)
+      doc.setFont('times', 'normal')
+      doc.text('Treasurer Signature:', 20, currentY)
+      currentY += 6
+      doc.setLineWidth(0.5)
+      doc.line(20, currentY, 100, currentY)
+      currentY += 8
+      
+      // Date line
+      doc.text('Date:', 20, currentY)
+      currentY += 6
+      doc.line(20, currentY, 100, currentY)
+      
       // Add footer
       addPDFFooter(doc)
       
