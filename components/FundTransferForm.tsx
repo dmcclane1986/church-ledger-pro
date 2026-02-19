@@ -10,12 +10,12 @@ type Account = Database['public']['Tables']['chart_of_accounts']['Row']
 
 interface FundTransferFormProps {
   funds: Fund[]
-  checkingAccount: Account
+  accounts: Account[]
 }
 
 export default function FundTransferForm({
   funds,
-  checkingAccount,
+  accounts,
 }: FundTransferFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,6 +25,8 @@ export default function FundTransferForm({
   const [date, setDate] = useState(getTodayLocalDate())
   const [sourceFundId, setSourceFundId] = useState(funds[0]?.id || '')
   const [destinationFundId, setDestinationFundId] = useState(funds[1]?.id || funds[0]?.id || '')
+  const [sourceAccountId, setSourceAccountId] = useState(accounts[0]?.id || '')
+  const [destinationAccountId, setDestinationAccountId] = useState(accounts[0]?.id || '')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('Fund transfer')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -50,9 +52,16 @@ export default function FundTransferForm({
       return
     }
 
-    // Validate source and destination are different
-    if (sourceFundId === destinationFundId) {
-      setError('Source and destination funds must be different')
+    // Validate source and destination are different (fund or account)
+    if (sourceFundId === destinationFundId && sourceAccountId === destinationAccountId) {
+      setError('Source and destination must be different (fund or account)')
+      setLoading(false)
+      return
+    }
+    
+    // Validate required fields
+    if (!sourceAccountId || !destinationAccountId) {
+      setError('Please select both source and destination accounts')
       setLoading(false)
       return
     }
@@ -62,8 +71,9 @@ export default function FundTransferForm({
         date,
         sourceFundId,
         destinationFundId,
+        sourceAccountId,
+        destinationAccountId,
         amount: amountNum,
-        checkingAccountId: checkingAccount.id,
         description: description || 'Fund transfer',
         referenceNumber: referenceNumber || undefined,
       })
@@ -148,6 +158,46 @@ export default function FundTransferForm({
         </select>
       </div>
 
+      {/* Source Account Dropdown */}
+      <div>
+        <label htmlFor="sourceAccount" className="block text-sm font-medium text-gray-700 mb-1">
+          Source Account (Transfer From) <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="sourceAccount"
+          value={sourceAccountId}
+          onChange={(e) => setSourceAccountId(e.target.value)}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.account_number} - {account.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Destination Account Dropdown */}
+      <div>
+        <label htmlFor="destinationAccount" className="block text-sm font-medium text-gray-700 mb-1">
+          Destination Account (Transfer To) <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="destinationAccount"
+          value={destinationAccountId}
+          onChange={(e) => setDestinationAccountId(e.target.value)}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.account_number} - {account.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Amount Field */}
       <div>
         <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
@@ -226,9 +276,13 @@ export default function FundTransferForm({
       <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
         <p className="font-medium mb-1">📘 Transfer Logic:</p>
         <ul className="text-xs space-y-1">
-          <li>• Credit: {checkingAccount.name} in {getFundName(sourceFundId)} (Decrease Source Fund)</li>
-          <li>• Debit: {checkingAccount.name} in {getFundName(destinationFundId)} (Increase Destination Fund)</li>
-          <li>• Total bank balance remains unchanged</li>
+          <li>• Credit: {accounts.find(a => a.id === sourceAccountId)?.name || 'Source Account'} in {getFundName(sourceFundId)} (Decrease)</li>
+          <li>• Debit: {accounts.find(a => a.id === destinationAccountId)?.name || 'Destination Account'} in {getFundName(destinationFundId)} (Increase)</li>
+          {sourceAccountId === destinationAccountId ? (
+            <li>• Same account: Total bank balance unchanged (fund reallocation only)</li>
+          ) : (
+            <li>• Different accounts: Money moves between accounts AND funds</li>
+          )}
         </ul>
       </div>
     </form>

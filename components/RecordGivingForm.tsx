@@ -12,13 +12,13 @@ type Account = Database['public']['Tables']['chart_of_accounts']['Row']
 interface RecordGivingFormProps {
   funds: Fund[]
   incomeAccounts: Account[]
-  checkingAccount: Account
+  checkingAccounts: Account[]
 }
 
 export default function RecordGivingForm({
   funds,
   incomeAccounts,
-  checkingAccount,
+  checkingAccounts,
 }: RecordGivingFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +35,7 @@ export default function RecordGivingForm({
   const [date, setDate] = useState(getTodayLocalDate())
   const [fundId, setFundId] = useState(funds[0]?.id || '')
   const [incomeAccountId, setIncomeAccountId] = useState(incomeAccounts[0]?.id || '')
+  const [checkingAccountId, setCheckingAccountId] = useState(checkingAccounts[0]?.id || '')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('Weekly giving')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -90,7 +91,7 @@ export default function RecordGivingForm({
     }
 
     // Validate required fields
-    if (!date || !fundId || !incomeAccountId) {
+    if (!date || !fundId || !incomeAccountId || !checkingAccountId) {
       setError('Please fill in all required fields')
       setLoading(false)
       return
@@ -102,7 +103,7 @@ export default function RecordGivingForm({
         fundId,
         incomeAccountId,
         amount: amountNum,
-        checkingAccountId: checkingAccount.id,
+        checkingAccountId: checkingAccountId,
         description: description || 'Weekly giving',
         referenceNumber: referenceNumber || undefined,
         donorId: donorId || undefined,
@@ -235,6 +236,26 @@ export default function RecordGivingForm({
         </select>
       </div>
 
+      {/* Checking Account Dropdown */}
+      <div>
+        <label htmlFor="checkingAccount" className="block text-sm font-medium text-gray-700 mb-1">
+          Cash/Bank Account <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="checkingAccount"
+          value={checkingAccountId}
+          onChange={(e) => setCheckingAccountId(e.target.value)}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {checkingAccounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.account_number} - {account.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Income Account Dropdown */}
       <div>
         <label htmlFor="incomeAccount" className="block text-sm font-medium text-gray-700 mb-1">
@@ -333,7 +354,7 @@ export default function RecordGivingForm({
       <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
         <p className="font-medium mb-1">📘 Double-Entry Logic:</p>
         <ul className="text-xs space-y-1">
-          <li>• Debit: {checkingAccount.name} (Increase Cash)</li>
+          <li>• Debit: {checkingAccounts.find(a => a.id === checkingAccountId)?.name || 'Selected Account'} (Increase Cash)</li>
           <li>• Credit: Selected Income Account (Increase Revenue)</li>
         </ul>
       </div>

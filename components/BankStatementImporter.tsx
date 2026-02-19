@@ -12,7 +12,7 @@ type Account = Database['public']['Tables']['chart_of_accounts']['Row']
 interface BankStatementImporterProps {
   funds: Fund[]
   expenseAccounts: Account[]
-  checkingAccount: Account
+  checkingAccounts: Account[]
 }
 
 interface ParsedTransaction {
@@ -42,7 +42,7 @@ interface CSVColumnMapping {
 export default function BankStatementImporter({
   funds,
   expenseAccounts,
-  checkingAccount,
+  checkingAccounts,
 }: BankStatementImporterProps) {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [rawData, setRawData] = useState<any[]>([])
@@ -58,6 +58,7 @@ export default function BankStatementImporter({
   const [isDragging, setIsDragging] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [step, setStep] = useState<'upload' | 'mapping' | 'staging'>('upload')
+  const [selectedCheckingAccountId, setSelectedCheckingAccountId] = useState(checkingAccounts[0]?.id || '')
 
   const handleFileUpload = (file: File) => {
     setUploadError(null)
@@ -207,7 +208,7 @@ export default function BankStatementImporter({
         fundId: transaction.fundId,
         expenseAccountId: transaction.expenseAccountId,
         amount: transaction.amount,
-        checkingAccountId: checkingAccount.id,
+        checkingAccountId: selectedCheckingAccountId,
         description: transaction.description,
         referenceNumber: transaction.checkNumber || undefined,
       })
@@ -487,6 +488,27 @@ export default function BankStatementImporter({
             >
               Start Over
             </button>
+          </div>
+
+          {/* Account Selection */}
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Cash/Bank Account for Expenses <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedCheckingAccountId}
+              onChange={(e) => setSelectedCheckingAccountId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {checkingAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.account_number} - {account.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-600 mt-1">
+              All expenses will be credited from this account
+            </p>
           </div>
 
           {transactions.length === 0 ? (

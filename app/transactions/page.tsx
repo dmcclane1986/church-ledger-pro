@@ -38,8 +38,8 @@ async function getIncomeAccounts() {
   return data || []
 }
 
-async function getCheckingAccount() {
-  // Try to find a checking account (commonly numbered 1100)
+async function getCheckingAccounts() {
+  // Get all checking/cash accounts
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('chart_of_accounts')
@@ -47,14 +47,13 @@ async function getCheckingAccount() {
     .eq('account_type', 'Asset')
     .eq('is_active', true)
     .order('account_number')
-    .limit(1)
   
   if (error) {
-    console.error('Error fetching checking account:', error)
-    return null
+    console.error('Error fetching checking accounts:', error)
+    return []
   }
   
-  return data?.[0] || null
+  return data || []
 }
 
 export default async function TransactionsPage() {
@@ -64,10 +63,10 @@ export default async function TransactionsPage() {
     redirect('/unauthorized')
   }
 
-  const [funds, incomeAccounts, checkingAccount] = await Promise.all([
+  const [funds, incomeAccounts, checkingAccounts] = await Promise.all([
     getFunds(),
     getIncomeAccounts(),
-    getCheckingAccount(),
+    getCheckingAccounts(),
   ])
 
   return (
@@ -82,7 +81,7 @@ export default async function TransactionsPage() {
           💰 Weekly Deposit & Tally Form
         </h2>
         
-        {funds.length === 0 || incomeAccounts.length === 0 || !checkingAccount ? (
+        {funds.length === 0 || incomeAccounts.length === 0 || checkingAccounts.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
             <h3 className="text-sm font-medium text-yellow-800 mb-2">
               Setup Required
@@ -93,14 +92,14 @@ export default async function TransactionsPage() {
             <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside">
               {funds.length === 0 && <li>Add at least one fund</li>}
               {incomeAccounts.length === 0 && <li>Add income accounts to your chart of accounts</li>}
-              {!checkingAccount && <li>Add a checking account (Asset type) to your chart of accounts</li>}
+              {checkingAccounts.length === 0 && <li>Add a checking account (Asset type) to your chart of accounts</li>}
             </ul>
           </div>
         ) : (
           <WeeklyDepositForm
             funds={funds}
             incomeAccounts={incomeAccounts}
-            checkingAccount={checkingAccount}
+            checkingAccounts={checkingAccounts}
           />
         )}
       </div>

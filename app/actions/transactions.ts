@@ -1,7 +1,33 @@
 'use server'
 
 import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/roles'
 import { revalidatePath } from 'next/cache'
+
+/**
+ * Get all active accounts for dropdowns (admin only)
+ */
+export async function getAllActiveAccounts() {
+  const supabase = await createServerClient()
+
+  try {
+    const { data, error } = await (supabase as any)
+      .from('chart_of_accounts')
+      .select('id, account_number, name, account_type')
+      .eq('is_active', true)
+      .order('account_number', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching accounts:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data: data || [] }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'Failed to fetch accounts' }
+  }
+}
 
 interface RecordGivingInput {
   date: string
@@ -610,6 +636,254 @@ export async function getTransactionById(journalEntryId: string) {
 }
 
 /**
+ * Update a transaction (admin only)
+ * Updates the journal entry and all associated ledger lines
+ * Ensures double-entry balance is maintained
+ */
+interface UpdateTransactionInput {
+  journalEntryId: string
+  entryDate: string
+  description: string
+  referenceNumber?: string | null
+  donorId?: string | null
+  ledgerLines: Array<{
+    id: string
+    accountId: string
+    fundId: string
+    debit: number
+    credit: number
+    memo?: string | null
+  }>
+}
+
+export async function updateTransaction(input: UpdateTransactionInput) {
+  const supabase = await createServerClient()
+
+  try {
+    // Check admin access
+    await requireAdmin()
+
+    // Validate ledger lines
+    if (!input.ledgerLines || input.ledgerLines.length < 2) {
+      return { success: false, error: 'Transaction must have at least 2 ledger lines' }
+    }
+
+    // Validate double-entry balance
+    const totalDebits = input.ledgerLines.reduce((sum, line) => sum + Number(line.debit || 0), 0)
+    const totalCredits = input.ledgerLines.reduce((sum, line) => sum + Number(line.credit || 0), 0)
+    const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
+
+    if (!isBalanced) {
+      return {
+        success: false,
+        error: `Transaction is not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`,
+      }
+    }
+
+    // Validate each line has either debit or credit (not both, not neither)
+    for (const line of input.ledgerLines) {
+      const hasDebit = Number(line.debit || 0) > 0
+      const hasCredit = Number(line.credit || 0) > 0
+      if (hasDebit && hasCredit) {
+        return { success: false, error: 'Each ledger line must have either a debit OR a credit, not both' }
+      }
+      if (!hasDebit && !hasCredit) {
+        return { success: false, error: 'Each ledger line must have either a debit OR a credit' }
+      }
+    }
+
+    // Update journal entry
+    const { error: journalError } = await (supabase as any)
+      .from('journal_entries')
+      .update({
+        entry_date: input.entryDate,
+        description: input.description,
+        reference_number: input.referenceNumber || null,
+        donor_id: input.donorId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.journalEntryId)
+
+    if (journalError) {
+      console.error('Error updating journal entry:', journalError)
+      return { success: false, error: 'Failed to update journal entry' }
+    }
+
+    // Update each ledger line
+    for (const line of input.ledgerLines) {
+      const { error: ledgerError } = await (supabase as any)
+        .from('ledger_lines')
+        .update({
+          account_id: line.accountId,
+          fund_id: line.fundId,
+          debit: line.debit,
+          credit: line.credit,
+          memo: line.memo || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', line.id)
+        .eq('journal_entry_id', input.journalEntryId)
+
+      if (ledgerError) {
+        console.error('Error updating ledger line:', ledgerError)
+        return { success: false, error: `Failed to update ledger line: ${ledgerError.message}` }
+      }
+    }
+
+    revalidatePath('/admin/transactions')
+    revalidatePath('/transactions')
+    return { success: true }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Access denied')) {
+      return { success: false, error: 'Access denied. Admin role required.' }
+    }
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}
+
+/**
+ * Move transactions from one account to another (admin only)
+ * Updates all ledger lines for selected transactions to use the new account
+ * Preserves all other information (fund, debit/credit, memo, etc.)
+ */
+interface MoveTransactionsInput {
+  sourceAccountId: string
+  destinationAccountId: string
+  journalEntryIds: string[]
+}
+
+export async function moveTransactionsBetweenAccounts(input: MoveTransactionsInput) {
+  const supabase = await createServerClient()
+
+  try {
+    // Check admin access
+    await requireAdmin()
+
+    // Validate inputs
+    if (!input.sourceAccountId || !input.destinationAccountId) {
+      return { success: false, error: 'Source and destination accounts are required' }
+    }
+
+    if (input.sourceAccountId === input.destinationAccountId) {
+      return { success: false, error: 'Source and destination accounts must be different' }
+    }
+
+    if (!input.journalEntryIds || input.journalEntryIds.length === 0) {
+      return { success: false, error: 'At least one transaction must be selected' }
+    }
+
+    // Get all ledger lines for the selected journal entries that use the source account
+    const { data: ledgerLines, error: fetchError } = await (supabase as any)
+      .from('ledger_lines')
+      .select('id, journal_entry_id, account_id')
+      .in('journal_entry_id', input.journalEntryIds)
+      .eq('account_id', input.sourceAccountId)
+
+    if (fetchError) {
+      console.error('Error fetching ledger lines:', fetchError)
+      return { success: false, error: 'Failed to fetch transactions' }
+    }
+
+    if (!ledgerLines || ledgerLines.length === 0) {
+      return { success: false, error: 'No transactions found with the selected source account' }
+    }
+
+    // Update all matching ledger lines to use the destination account
+    const ledgerLineIds = ledgerLines.map((line: any) => line.id)
+    const { error: updateError } = await (supabase as any)
+      .from('ledger_lines')
+      .update({
+        account_id: input.destinationAccountId,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', ledgerLineIds)
+
+    if (updateError) {
+      console.error('Error updating ledger lines:', updateError)
+      return { success: false, error: 'Failed to move transactions' }
+    }
+
+    revalidatePath('/admin/transactions')
+    revalidatePath('/transactions')
+    return { 
+      success: true, 
+      movedCount: ledgerLines.length,
+      transactionCount: new Set(ledgerLines.map((line: any) => line.journal_entry_id)).size
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Access denied')) {
+      return { success: false, error: 'Access denied. Admin role required.' }
+    }
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}
+
+/**
+ * Get transactions by account ID (for move transactions feature)
+ */
+export async function getTransactionsByAccount(accountId: string, limit = 100) {
+  const supabase = await createServerClient()
+
+  try {
+    // Get all ledger lines for this account
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
+      .from('ledger_lines')
+      .select(`
+        journal_entry_id,
+        journal_entries!inner (
+          id,
+          entry_date,
+          description,
+          reference_number,
+          created_at
+        )
+      `)
+      .eq('account_id', accountId)
+      .limit(limit * 2) // Get more to account for duplicates
+
+    if (ledgerError) {
+      console.error('Error fetching transactions:', ledgerError)
+      return { success: false, error: ledgerError.message }
+    }
+
+    // Deduplicate by journal_entry_id and format
+    const uniqueEntries = new Map()
+    ledgerLines?.forEach((line: any) => {
+      const entry = line.journal_entries
+      if (entry && !uniqueEntries.has(entry.id)) {
+        uniqueEntries.set(entry.id, {
+          id: entry.id,
+          entry_date: entry.entry_date,
+          description: entry.description,
+          reference_number: entry.reference_number,
+          created_at: entry.created_at,
+        })
+      }
+    })
+
+    // Sort by entry_date descending (most recent first)
+    const sortedEntries = Array.from(uniqueEntries.values()).sort((a: any, b: any) => {
+      const dateA = new Date(a.entry_date).getTime()
+      const dateB = new Date(b.entry_date).getTime()
+      return dateB - dateA
+    })
+
+    // Limit to requested number
+    const limitedEntries = sortedEntries.slice(0, limit)
+
+    return { 
+      success: true, 
+      data: limitedEntries
+    }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'Failed to fetch transactions' }
+  }
+}
+
+/**
  * Delete a transaction (admin only)
  * Deletes the journal entry and all associated ledger lines
  */
@@ -652,8 +926,9 @@ interface FundTransferInput {
   date: string
   sourceFundId: string
   destinationFundId: string
+  sourceAccountId: string
+  destinationAccountId: string
   amount: number
-  checkingAccountId: string
   description?: string
   referenceNumber?: string
 }
@@ -667,9 +942,9 @@ export async function transferBetweenFunds(input: FundTransferInput) {
       return { success: false, error: 'Amount must be greater than zero' }
     }
 
-    // Validate source and destination are different
-    if (input.sourceFundId === input.destinationFundId) {
-      return { success: false, error: 'Source and destination funds must be different' }
+    // Validate source and destination are different (fund or account)
+    if (input.sourceFundId === input.destinationFundId && input.sourceAccountId === input.destinationAccountId) {
+      return { success: false, error: 'Source and destination must be different (fund or account)' }
     }
 
     // Step 1: Create the journal entry header
@@ -688,21 +963,21 @@ export async function transferBetweenFunds(input: FundTransferInput) {
       return { success: false, error: 'Failed to create journal entry' }
     }
 
-    // Step 2: Create the two ledger lines (same account, different funds)
+    // Step 2: Create the two ledger lines (can be different accounts and/or different funds)
     const ledgerLines = [
       {
         journal_entry_id: journalEntry.id,
-        account_id: input.checkingAccountId, // Same checking account
+        account_id: input.sourceAccountId, // Source account
         fund_id: input.sourceFundId, // Source fund
         debit: 0,
-        credit: input.amount, // Credit: Decrease source fund balance
+        credit: input.amount, // Credit: Decrease source fund/account balance
         memo: 'Transfer out',
       },
       {
         journal_entry_id: journalEntry.id,
-        account_id: input.checkingAccountId, // Same checking account
+        account_id: input.destinationAccountId, // Destination account
         fund_id: input.destinationFundId, // Destination fund
-        debit: input.amount, // Debit: Increase destination fund balance
+        debit: input.amount, // Debit: Increase destination fund/account balance
         credit: 0,
         memo: 'Transfer in',
       },
@@ -745,16 +1020,25 @@ export async function transferBetweenFunds(input: FundTransferInput) {
 interface WeeklyDepositInput {
   date: string
   description: string
-  checkingAccountId: string
+  accountAllocations: Array<{
+    accountId: string
+    amount: number
+  }>
   generalFundId: string
   generalIncomeAccountId: string
   generalFundAmount: number
+  generalFundCashAmount?: number
+  generalFundCheckAmount?: number
   missionsAmount?: number
+  missionsCashAmount?: number
+  missionsCheckAmount?: number
   missionsFundId?: string
   designatedItems: Array<{
     accountId: string
     fundId: string
     amount: number
+    cashAmount?: number
+    checkAmount?: number
     description: string
   }>
   checks: Array<{
@@ -792,6 +1076,22 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
       return { success: false, error: 'Missions fund must be selected when missions amount is provided' }
     }
 
+    // Validate account allocations
+    const totalAllocated = input.accountAllocations.reduce((sum, alloc) => sum + alloc.amount, 0)
+    if (Math.abs(totalAllocated - totalDeposit) > 0.01) {
+      return { 
+        success: false, 
+        error: `Account allocations ($${totalAllocated.toFixed(2)}) must equal total deposit ($${totalDeposit.toFixed(2)})` 
+      }
+    }
+
+    if (input.accountAllocations.length === 0) {
+      return { success: false, error: 'At least one account allocation is required' }
+    }
+
+    // Get primary account (first allocation) for individual check/envelope entries
+    const primaryAccountId = input.accountAllocations[0].accountId
+
     const createdJournalEntryIds: string[] = []
 
     // Step 1: Create individual journal entries for each check with a donor_id
@@ -820,10 +1120,11 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
         createdJournalEntryIds.push(checkEntry.id)
 
         // Create ledger lines for this check (Debit: Checking, Credit: Income)
+        // Use primary account for individual check entries
         const checkLedgerLines = [
           {
             journal_entry_id: checkEntry.id,
-            account_id: input.checkingAccountId,
+            account_id: primaryAccountId,
             fund_id: input.generalFundId,
             debit: check.amount,
             credit: 0,
@@ -880,10 +1181,11 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
         createdJournalEntryIds.push(envelopeEntry.id)
 
         // Create ledger lines for this envelope (Debit: Checking, Credit: Income)
+        // Use primary account for individual envelope entries
         const envelopeLedgerLines = [
           {
             journal_entry_id: envelopeEntry.id,
-            account_id: input.checkingAccountId,
+            account_id: primaryAccountId,
             fund_id: input.generalFundId,
             debit: envelope.amount,
             credit: 0,
@@ -957,17 +1259,30 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
         memo: string | null
       }> = []
 
-      // General fund remaining amount (loose cash + untracked items)
-      if (remainingGeneralFundAmount > 0.01) {
-        ledgerLines.push({
-          journal_entry_id: mainEntry.id,
-          account_id: input.checkingAccountId,
-          fund_id: input.generalFundId,
-          debit: remainingGeneralFundAmount,
-          credit: 0,
-          memo: 'Cash received - General Fund',
-        })
+      // Calculate allocation proportions
+      const allocationProportions = input.accountAllocations.map(alloc => ({
+        accountId: alloc.accountId,
+        proportion: alloc.amount / totalDeposit
+      }))
 
+      // General fund remaining amount (loose cash + untracked items)
+      // Distribute across accounts based on allocations
+      if (remainingGeneralFundAmount > 0.01) {
+        for (const allocProp of allocationProportions) {
+          const allocatedAmount = remainingGeneralFundAmount * allocProp.proportion
+          if (allocatedAmount > 0.01) {
+            ledgerLines.push({
+              journal_entry_id: mainEntry.id,
+              account_id: allocProp.accountId,
+              fund_id: input.generalFundId,
+              debit: allocatedAmount,
+              credit: 0,
+              memo: 'Cash received - General Fund',
+            })
+          }
+        }
+
+        // Credit income account (single entry for total)
         ledgerLines.push({
           journal_entry_id: mainEntry.id,
           account_id: input.generalIncomeAccountId,
@@ -978,17 +1293,23 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
         })
       }
 
-      // Missions fund
+      // Missions fund - distribute across accounts
       if (input.missionsAmount && input.missionsAmount > 0 && input.missionsFundId) {
-        ledgerLines.push({
-          journal_entry_id: mainEntry.id,
-          account_id: input.checkingAccountId,
-          fund_id: input.missionsFundId,
-          debit: input.missionsAmount,
-          credit: 0,
-          memo: 'Cash received - Missions',
-        })
+        for (const allocProp of allocationProportions) {
+          const allocatedAmount = input.missionsAmount * allocProp.proportion
+          if (allocatedAmount > 0.01) {
+            ledgerLines.push({
+              journal_entry_id: mainEntry.id,
+              account_id: allocProp.accountId,
+              fund_id: input.missionsFundId,
+              debit: allocatedAmount,
+              credit: 0,
+              memo: 'Cash received - Missions',
+            })
+          }
+        }
 
+        // Credit income account (single entry for total)
         ledgerLines.push({
           journal_entry_id: mainEntry.id,
           account_id: input.generalIncomeAccountId,
@@ -999,18 +1320,24 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
         })
       }
 
-      // Designated items
+      // Designated items - distribute across accounts
       for (const item of input.designatedItems) {
         if (item.amount > 0) {
-          ledgerLines.push({
-            journal_entry_id: mainEntry.id,
-            account_id: input.checkingAccountId,
-            fund_id: item.fundId,
-            debit: item.amount,
-            credit: 0,
-            memo: `Cash received - ${item.description}`,
-          })
+          for (const allocProp of allocationProportions) {
+            const allocatedAmount = item.amount * allocProp.proportion
+            if (allocatedAmount > 0.01) {
+              ledgerLines.push({
+                journal_entry_id: mainEntry.id,
+                account_id: allocProp.accountId,
+                fund_id: item.fundId,
+                debit: allocatedAmount,
+                credit: 0,
+                memo: `Cash received - ${item.description}`,
+              })
+            }
+          }
 
+          // Credit designated income account (single entry for total)
           ledgerLines.push({
             journal_entry_id: mainEntry.id,
             account_id: item.accountId,

@@ -25,7 +25,7 @@ interface BatchOnlineDonationFormProps {
   donors: Donor[]
   funds: Fund[]
   incomeAccounts: Account[]
-  checkingAccount: Account
+  checkingAccounts: Account[]
   feesAccount: Account
 }
 
@@ -33,7 +33,7 @@ export default function BatchOnlineDonationForm({
   donors,
   funds,
   incomeAccounts,
-  checkingAccount,
+  checkingAccounts,
   feesAccount,
 }: BatchOnlineDonationFormProps) {
   const [loading, setLoading] = useState(false)
@@ -46,6 +46,7 @@ export default function BatchOnlineDonationForm({
 
   // Form state
   const [date, setDate] = useState(getTodayLocalDate())
+  const [checkingAccountId, setCheckingAccountId] = useState(checkingAccounts[0]?.id || '')
   const [netDeposit, setNetDeposit] = useState('')
   const [processingFees, setProcessingFees] = useState('')
   const [description, setDescription] = useState('Online donation batch')
@@ -154,7 +155,7 @@ export default function BatchOnlineDonationForm({
         date,
         netDeposit: netDepositNum,
         processingFees: processingFeesNum,
-        checkingAccountId: checkingAccount.id,
+        checkingAccountId: checkingAccountId,
         feesAccountId: feesAccount.id,
         description: description || 'Online donation batch',
         referenceNumber: referenceNumber || undefined,
@@ -276,6 +277,27 @@ export default function BatchOnlineDonationForm({
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          {/* Cash/Bank Account */}
+          <div>
+            <label htmlFor="checkingAccount" className="block text-sm font-medium text-gray-700 mb-1">
+              Cash/Bank Account <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="checkingAccount"
+              value={checkingAccountId}
+              onChange={(e) => setCheckingAccountId(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {checkingAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.account_number} - {account.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Account where deposit was received</p>
           </div>
 
           {/* Net Deposit */}

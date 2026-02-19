@@ -38,7 +38,7 @@ async function getExpenseAccounts() {
   return data || []
 }
 
-async function getCheckingAccount() {
+async function getCheckingAccounts() {
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('chart_of_accounts')
@@ -46,21 +46,20 @@ async function getCheckingAccount() {
     .eq('account_type', 'Asset')
     .eq('is_active', true)
     .order('account_number')
-    .limit(1)
   
   if (error) {
-    console.error('Error fetching checking account:', error)
-    return null
+    console.error('Error fetching checking accounts:', error)
+    return []
   }
   
-  return data?.[0] || null
+  return data || []
 }
 
 export default async function BankStatementImportPage() {
-  const [funds, expenseAccounts, checkingAccount] = await Promise.all([
+  const [funds, expenseAccounts, checkingAccounts] = await Promise.all([
     getFunds(),
     getExpenseAccounts(),
-    getCheckingAccount(),
+    getCheckingAccounts(),
   ])
 
   return (
@@ -73,7 +72,7 @@ export default async function BankStatementImportPage() {
       </div>
 
       {/* Setup Check */}
-      {funds.length === 0 || expenseAccounts.length === 0 || !checkingAccount ? (
+      {funds.length === 0 || expenseAccounts.length === 0 || checkingAccounts.length === 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">
             Setup Required
@@ -84,7 +83,7 @@ export default async function BankStatementImportPage() {
           <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside">
             {funds.length === 0 && <li>Add at least one fund</li>}
             {expenseAccounts.length === 0 && <li>Add expense accounts (5000s) to your chart of accounts</li>}
-            {!checkingAccount && <li>Add a checking account (Asset type) to your chart of accounts</li>}
+            {checkingAccounts.length === 0 && <li>Add a checking account (Asset type) to your chart of accounts</li>}
           </ul>
         </div>
       ) : (
@@ -92,7 +91,7 @@ export default async function BankStatementImportPage() {
           <BankStatementImporter
             funds={funds}
             expenseAccounts={expenseAccounts}
-            checkingAccount={checkingAccount}
+            checkingAccounts={checkingAccounts}
           />
         </div>
       )}

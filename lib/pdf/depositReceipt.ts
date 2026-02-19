@@ -30,6 +30,12 @@ export interface FundAllocation {
   isRestricted?: boolean
 }
 
+export interface AccountAllocation {
+  accountNumber: number
+  accountName: string
+  amount: number
+}
+
 export interface DepositData {
   depositId: string
   date: string
@@ -41,6 +47,7 @@ export interface DepositData {
   totalEnvelopes: number
   looseCash: number
   fundAllocations: FundAllocation[]
+  accountAllocations?: AccountAllocation[]
   finalTotal: number
   logoUrl?: string | null
   churchName?: string
@@ -291,10 +298,15 @@ export function generateDepositReceiptPDF(data: DepositData) {
     const totalCash = data.totalEnvelopes + data.looseCash
 
     const fundData = data.fundAllocations.map((fund) => {
-      // Calculate cash and check amounts for each fund based on percentage
+      // Use explicit cash/check amounts if provided, otherwise calculate based on percentage
+      // If explicitly set to 0, use 0. If undefined, calculate from percentage.
       const fundPercentage = totalDeposit > 0 ? fund.amount / totalDeposit : 0
-      const fundCash = fund.cashAmount !== undefined ? fund.cashAmount : totalCash * fundPercentage
-      const fundCheck = fund.checkAmount !== undefined ? fund.checkAmount : data.totalChecks * fundPercentage
+      const fundCash = fund.cashAmount !== undefined && fund.cashAmount !== null 
+        ? fund.cashAmount 
+        : totalCash * fundPercentage
+      const fundCheck = fund.checkAmount !== undefined && fund.checkAmount !== null 
+        ? fund.checkAmount 
+        : data.totalChecks * fundPercentage
 
       return [
         fund.fundName + (fund.isRestricted ? ' (Restricted)' : ''),
@@ -322,13 +334,58 @@ export function generateDepositReceiptPDF(data: DepositData) {
     rightSideY = (doc as any).lastAutoTable.finalY + 10
   }
 
+  // Account Allocations Section (if multiple accounts)
+  if (data.accountAllocations && data.accountAllocations.length > 1) {
+    yPosition = Math.max(leftSideY, rightSideY) + 10
+    
+    // Check if we need a new page
+    if (yPosition > 200) {
+      doc.addPage()
+      yPosition = margin
+    }
+
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Account Allocations', margin, yPosition)
+    yPosition += 5
+
+    const accountData = data.accountAllocations.map((alloc) => [
+      `${alloc.accountNumber} - ${alloc.accountName}`,
+      formatCurrency(alloc.amount),
+    ])
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Account', 'Amount']],
+      body: accountData,
+      theme: 'grid',
+      headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
+      styles: { fontSize: 9, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 50, halign: 'right' },
+      },
+      margin: { left: margin, right: margin },
+    })
+    yPosition = (doc as any).lastAutoTable.finalY + 5
+
+    // Account Total
+    const accountTotal = data.accountAllocations.reduce((sum, alloc) => sum + alloc.amount, 0)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Total Allocated:', margin, yPosition)
+    doc.text(formatCurrency(accountTotal), 185, yPosition, { align: 'right' })
+    yPosition += 10
+  }
+
   // Move to the lower of the two sections, plus extra spacing
-  yPosition = Math.max(leftSideY, rightSideY) + 10
+  yPosition = Math.max(yPosition, Math.max(leftSideY, rightSideY) + 10)
 
   // Check if content would overflow onto signature area
   // If so, add a new page
   if (yPosition > 210) {
     doc.addPage()
+    yPosition = margin
   }
 
   // Total Deposit - Fixed position at bottom

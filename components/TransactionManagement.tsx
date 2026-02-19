@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteTransaction } from '@/app/actions/transactions'
+import { deleteTransaction, getAllTransactions } from '@/app/actions/transactions'
+import EditTransactionForm from './EditTransactionForm'
 import type { Database } from '@/types/database.types'
 
 type JournalEntry = Database['public']['Tables']['journal_entries']['Row']
@@ -31,6 +32,7 @@ export default function TransactionManagement({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDate, setFilterDate] = useState('')
 
@@ -53,6 +55,16 @@ export default function TransactionManagement({
     } finally {
       setDeletingId(null)
     }
+  }
+
+  const handleEditSuccess = async () => {
+    // Reload transactions to get updated data
+    const result = await getAllTransactions(100, 0)
+    if (result.success && result.data) {
+      setTransactions(result.data)
+    }
+    setEditingId(null)
+    setExpandedId(null)
   }
 
   const toggleExpanded = (id: string) => {
@@ -173,6 +185,16 @@ export default function TransactionManagement({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingId(transaction.id)
+                      }}
+                      disabled={deletingId === transaction.id}
+                      className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded border border-blue-300 disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -313,6 +335,18 @@ export default function TransactionManagement({
           ))
         )}
       </div>
+
+      {/* Edit Transaction Modal */}
+      {editingId && (() => {
+        const transactionToEdit = transactions.find(t => t.id === editingId)
+        return transactionToEdit ? (
+          <EditTransactionForm
+            transaction={transactionToEdit}
+            onClose={() => setEditingId(null)}
+            onSuccess={handleEditSuccess}
+          />
+        ) : null
+      })()}
     </div>
   )
 }

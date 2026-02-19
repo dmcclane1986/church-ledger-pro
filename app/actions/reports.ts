@@ -44,6 +44,18 @@ export interface BalanceSheetData {
   isBalanced: boolean
 }
 
+export interface FundCashBalance {
+  fund_id: string
+  fund_name: string
+  cash_balance: number
+}
+
+export interface FundCashBalance {
+  fund_id: string
+  fund_name: string
+  cash_balance: number
+}
+
 export async function fetchBalanceSheet(): Promise<{
   success: boolean
   data?: BalanceSheetData
@@ -314,6 +326,84 @@ export async function fetchBalanceSheet(): Promise<{
         totalFundBalances,
         isBalanced,
       },
+    }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}
+
+export async function fetchFundCashBalances(): Promise<{
+  success: boolean
+  data?: FundCashBalance[]
+  error?: string
+}> {
+  const supabase = await createServerClient()
+
+  try {
+    // Fetch all ledger lines for Asset accounts only (cash, checking, savings, petty cash)
+    const { data: ledgerLines, error: ledgerError } = await (supabase as any)
+      .from('ledger_lines')
+      .select(`
+        id,
+        debit,
+        credit,
+        fund_id,
+        funds (
+          id,
+          name
+        ),
+        chart_of_accounts (
+          id,
+          account_type
+        ),
+        journal_entries!inner (
+          is_voided
+        )
+      `)
+      .eq('journal_entries.is_voided', false)
+      .eq('chart_of_accounts.account_type', 'Asset')
+
+    if (ledgerError) {
+      console.error('[fetchFundCashBalances] Error:', ledgerError)
+      return { success: false, error: `Failed to fetch cash data: ${ledgerError.message}` }
+    }
+
+    // Calculate cash balance per fund
+    const fundCashMap = new Map<string, { fund_id: string; fund_name: string; balance: number }>()
+
+    for (const line of ledgerLines || []) {
+      const fund = line.funds as any
+      const account = line.chart_of_accounts as any
+      
+      if (!fund || !account) continue
+
+      const fundId = fund.id
+      if (!fundCashMap.has(fundId)) {
+        fundCashMap.set(fundId, {
+          fund_id: fundId,
+          fund_name: fund.name,
+          balance: 0,
+        })
+      }
+
+      const fundCash = fundCashMap.get(fundId)!
+      // Assets: Debit increases, Credit decreases
+      fundCash.balance += line.debit - line.credit
+    }
+
+    // Convert to array and sort by fund name
+    const fundCashBalances: FundCashBalance[] = Array.from(fundCashMap.values())
+      .map(fund => ({
+        fund_id: fund.fund_id,
+        fund_name: fund.fund_name,
+        cash_balance: fund.balance,
+      }))
+      .sort((a, b) => a.fund_name.localeCompare(b.fund_name))
+
+    return {
+      success: true,
+      data: fundCashBalances,
     }
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -1240,6 +1330,8 @@ export interface YTDFundBalance {
   is_restricted: boolean
   ytd_income: number
   ytd_expenses: number
+  ytd_transfers_in: number
+  ytd_transfers_out: number
   net_change: number
 }
 
@@ -1268,7 +1360,9 @@ export async function fetchYTDFundBalances(): Promise<{
       .select(`
         debit,
         credit,
+        account_id,
         fund_id,
+        memo,
         funds (
           id,
           name,
@@ -1278,8 +1372,10 @@ export async function fetchYTDFundBalances(): Promise<{
           account_type
         ),
         journal_entries!inner (
+          id,
           entry_date,
-          is_voided
+          is_voided,
+          description
         )
       `)
       .gte('journal_entries.entry_date', firstDayOfYear)
@@ -1291,6 +1387,52 @@ export async function fetchYTDFundBalances(): Promise<{
       return { success: false, error: `Failed to fetch YTD fund data: ${ledgerError.message}` }
     }
 
+    // First pass: identify fund transfers by finding journal entries with same account, different funds
+    const transferJournalEntries = new Set<string>()
+    const journalEntryMap = new Map<string, Array<{ account_id: string; fund_id: string; debit: number; credit: number; account_type: string }>>()
+
+    for (const line of ledgerLines || []) {
+      const journalEntry = line.journal_entries as any
+      const account = line.chart_of_accounts as any
+      if (!journalEntry || !account) continue
+
+      const entryId = journalEntry.id
+      if (!journalEntryMap.has(entryId)) {
+        journalEntryMap.set(entryId, [])
+      }
+      journalEntryMap.get(entryId)!.push({
+        account_id: line.account_id,
+        fund_id: line.fund_id,
+        debit: line.debit,
+        credit: line.credit,
+        account_type: account.account_type,
+      })
+    }
+
+    // Identify transfers: Asset account type, and either different accounts OR different funds
+    // This covers: fund transfers (same account, different funds), account transfers (different accounts, same fund), or both
+    for (const [entryId, lines] of journalEntryMap.entries()) {
+      if (lines.length === 2) {
+        const line1 = lines[0]
+        const line2 = lines[1]
+        
+        // Check if it's a transfer: Asset accounts, and either accounts or funds are different
+        // This includes:
+        // - Fund transfers: same account, different funds
+        // - Account transfers: different accounts, same fund
+        // - Both: different accounts AND different funds
+        if (
+          line1.account_type === 'Asset' &&
+          line2.account_type === 'Asset' &&
+          (line1.account_id !== line2.account_id || line1.fund_id !== line2.fund_id) &&
+          // Ensure one is a credit and one is a debit (balanced transfer)
+          ((line1.debit > 0 && line2.credit > 0) || (line1.credit > 0 && line2.debit > 0))
+        ) {
+          transferJournalEntries.add(entryId)
+        }
+      }
+    }
+
     // Group by fund
     const fundMap = new Map<string, {
       fund_id: string
@@ -1298,13 +1440,17 @@ export async function fetchYTDFundBalances(): Promise<{
       is_restricted: boolean
       ytd_income: number
       ytd_expenses: number
+      ytd_transfers_in: number
+      ytd_transfers_out: number
     }>()
 
+    // Second pass: calculate income, expenses, and transfers
     for (const line of ledgerLines || []) {
       const fund = line.funds as any
       const account = line.chart_of_accounts as any
+      const journalEntry = line.journal_entries as any
       
-      if (!fund || !account) continue
+      if (!fund || !account || !journalEntry) continue
 
       const fundId = fund.id
       if (!fundMap.has(fundId)) {
@@ -1314,12 +1460,25 @@ export async function fetchYTDFundBalances(): Promise<{
           is_restricted: fund.is_restricted,
           ytd_income: 0,
           ytd_expenses: 0,
+          ytd_transfers_in: 0,
+          ytd_transfers_out: 0,
         })
       }
 
       const fundEntry = fundMap.get(fundId)!
 
-      if (account.account_type === 'Income') {
+      // Check if this is a fund transfer
+      const isTransfer = transferJournalEntries.has(journalEntry.id)
+
+      if (isTransfer && account.account_type === 'Asset') {
+        // Fund transfer: debit = transfer in, credit = transfer out
+        if (line.debit > 0) {
+          fundEntry.ytd_transfers_in += line.debit
+        }
+        if (line.credit > 0) {
+          fundEntry.ytd_transfers_out += line.credit
+        }
+      } else if (account.account_type === 'Income') {
         // Income: Credits - Debits
         fundEntry.ytd_income += line.credit - line.debit
       } else if (account.account_type === 'Expense') {
@@ -1333,7 +1492,7 @@ export async function fetchYTDFundBalances(): Promise<{
     for (const fund of fundMap.values()) {
       ytdFundBalances.push({
         ...fund,
-        net_change: fund.ytd_income - fund.ytd_expenses,
+        net_change: fund.ytd_income - fund.ytd_expenses + fund.ytd_transfers_in - fund.ytd_transfers_out,
       })
     }
 

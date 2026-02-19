@@ -26,8 +26,8 @@ async function getIncomeAccounts() {
   return data || []
 }
 
-async function getCheckingAccount() {
-  // Get the primary checking account (typically 1100)
+async function getCheckingAccounts() {
+  // Get all checking/cash accounts
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('chart_of_accounts')
@@ -35,14 +35,13 @@ async function getCheckingAccount() {
     .eq('account_type', 'Asset')
     .eq('is_active', true)
     .order('account_number')
-    .limit(1)
   
   if (error) {
-    console.error('Error fetching checking account:', error)
-    return null
+    console.error('Error fetching checking accounts:', error)
+    return []
   }
   
-  return data?.[0] || null
+  return data || []
 }
 
 async function getFeesAccount() {
@@ -67,11 +66,11 @@ async function getFeesAccount() {
 }
 
 export default async function BatchOnlineDonationPage() {
-  const [donorsResult, fundsResult, incomeAccounts, checkingAccount, feesAccount] = await Promise.all([
+  const [donorsResult, fundsResult, incomeAccounts, checkingAccounts, feesAccount] = await Promise.all([
     fetchDonors(),
     getFunds(),
     getIncomeAccounts(),
-    getCheckingAccount(),
+    getCheckingAccounts(),
     getFeesAccount(),
   ])
 
@@ -83,7 +82,7 @@ export default async function BatchOnlineDonationPage() {
     donors.length === 0 || 
     funds.length === 0 || 
     incomeAccounts.length === 0 || 
-    !checkingAccount || 
+    checkingAccounts.length === 0 || 
     !feesAccount
 
   return (
@@ -119,7 +118,7 @@ export default async function BatchOnlineDonationPage() {
                 Add at least one income account (4000s). <Link href="/admin/accounts" className="underline font-medium">Manage accounts →</Link>
               </li>
             )}
-            {!checkingAccount && (
+            {checkingAccounts.length === 0 && (
               <li>
                 Add a checking account (Asset type). <Link href="/admin/accounts" className="underline font-medium">Manage accounts →</Link>
               </li>
@@ -137,7 +136,7 @@ export default async function BatchOnlineDonationPage() {
             donors={donors}
             funds={funds}
             incomeAccounts={incomeAccounts}
-            checkingAccount={checkingAccount}
+            checkingAccounts={checkingAccounts}
             feesAccount={feesAccount}
           />
         </div>

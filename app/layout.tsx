@@ -161,6 +161,13 @@ export default async function RootLayout({
                             Manage Transactions
                           </a>
                           <a
+                            href="/admin/move-transactions"
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            role="menuitem"
+                          >
+                            Move Transactions
+                          </a>
+                          <a
                             href="/admin/accounts"
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                             role="menuitem"

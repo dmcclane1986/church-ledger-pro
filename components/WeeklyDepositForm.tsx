@@ -14,7 +14,7 @@ type Account = Database['public']['Tables']['chart_of_accounts']['Row']
 interface WeeklyDepositFormProps {
   funds: Fund[]
   incomeAccounts: Account[]
-  checkingAccount: Account
+  checkingAccounts: Account[]
 }
 
 interface CheckEntry {
@@ -37,17 +37,29 @@ interface DesignatedEntry {
   accountId: string
   fundId: string
   amount: string
+  cashAmount: string
+  checkAmount: string
   description: string
 }
 
 export default function WeeklyDepositForm({
   funds,
   incomeAccounts,
-  checkingAccount,
+  checkingAccounts,
 }: WeeklyDepositFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  
+  // Account allocations for splitting deposit across multiple accounts
+  interface AccountAllocation {
+    id: string
+    accountId: string
+    amount: string
+  }
+  const [accountAllocations, setAccountAllocations] = useState<AccountAllocation[]>([
+    { id: '1', accountId: checkingAccounts[0]?.id || '', amount: '' }
+  ])
 
   // Donor state
   const [donors, setDonors] = useState<Donor[]>([])
@@ -85,7 +97,13 @@ export default function WeeklyDepositForm({
 
   // Missions giving
   const [missionsAmount, setMissionsAmount] = useState('')
+  const [missionsCashAmount, setMissionsCashAmount] = useState('')
+  const [missionsCheckAmount, setMissionsCheckAmount] = useState('')
   const [missionsFundId, setMissionsFundId] = useState('')
+  
+  // General fund cash/check breakdown
+  const [generalFundCashAmount, setGeneralFundCashAmount] = useState('')
+  const [generalFundCheckAmount, setGeneralFundCheckAmount] = useState('')
 
   // Designated items
   const [designatedItems, setDesignatedItems] = useState<DesignatedEntry[]>([])
@@ -255,6 +273,47 @@ export default function WeeklyDepositForm({
     return generalFundDeposit + missionsTotal + designatedTotal
   }, [generalFundDeposit, missionsTotal, designatedTotal])
 
+  // Calculate total allocated to accounts
+  const totalAccountAllocations = useMemo(() => {
+    return accountAllocations.reduce((sum, alloc) => sum + (parseFloat(alloc.amount) || 0), 0)
+  }, [accountAllocations])
+
+  // Check if account allocations match final deposit
+  const accountAllocationsMatch = useMemo(() => {
+    if (finalTotalDeposit === 0) return null // No deposit yet
+    return Math.abs(totalAccountAllocations - finalTotalDeposit) < 0.01
+  }, [totalAccountAllocations, finalTotalDeposit])
+
+  // Account allocation handlers
+  const addAccountAllocation = () => {
+    setAccountAllocations([
+      ...accountAllocations,
+      { id: Date.now().toString(), accountId: checkingAccounts[0]?.id || '', amount: '' }
+    ])
+  }
+
+  const removeAccountAllocation = (id: string) => {
+    if (accountAllocations.length > 1) {
+      setAccountAllocations(accountAllocations.filter(a => a.id !== id))
+    }
+  }
+
+  const updateAccountAllocation = (id: string, field: 'accountId' | 'amount', value: string) => {
+    setAccountAllocations(accountAllocations.map(a => 
+      a.id === id ? { ...a, [field]: value } : a
+    ))
+  }
+
+  // Auto-fill first allocation with total if only one account
+  useEffect(() => {
+    if (accountAllocations.length === 1 && finalTotalDeposit > 0 && !accountAllocations[0].amount) {
+      setAccountAllocations([{
+        ...accountAllocations[0],
+        amount: finalTotalDeposit.toFixed(2)
+      }])
+    }
+  }, [finalTotalDeposit])
+
   // Check entry handlers
   const addCheck = () => {
     setChecks([...checks, { id: Date.now().toString(), referenceNumber: '', amount: '', donorId: '' }])
@@ -297,6 +356,8 @@ export default function WeeklyDepositForm({
         accountId: incomeAccounts[0]?.id || '',
         fundId: funds[0]?.id || '',
         amount: '',
+        cashAmount: '',
+        checkAmount: '',
         description: '',
       },
     ])
@@ -308,11 +369,42 @@ export default function WeeklyDepositForm({
 
   const updateDesignatedItem = (
     id: string,
-    field: 'accountId' | 'fundId' | 'amount' | 'description',
+    field: 'accountId' | 'fundId' | 'amount' | 'cashAmount' | 'checkAmount' | 'description',
     value: string
   ) => {
     setDesignatedItems(designatedItems.map((i) => (i.id === id ? { ...i, [field]: value } : i)))
+    
+    // Auto-calculate total amount from cash + check if both are filled
+    if (field === 'cashAmount' || field === 'checkAmount') {
+      const item = designatedItems.find(i => i.id === id)
+      if (item) {
+        const cash = field === 'cashAmount' ? parseFloat(value) || 0 : parseFloat(item.cashAmount) || 0
+        const check = field === 'checkAmount' ? parseFloat(value) || 0 : parseFloat(item.checkAmount) || 0
+        const total = cash + check
+        setDesignatedItems(designatedItems.map((i) => 
+          i.id === id ? { ...i, [field]: value, amount: total > 0 ? total.toFixed(2) : '' } : i
+        ))
+      }
+    }
   }
+  
+  // Auto-calculate general fund cash/check totals
+  useEffect(() => {
+    const cash = parseFloat(generalFundCashAmount) || 0
+    const check = parseFloat(generalFundCheckAmount) || 0
+    const total = cash + check
+    // Don't auto-update if user is manually entering amounts
+  }, [generalFundCashAmount, generalFundCheckAmount])
+  
+  // Auto-calculate missions cash/check totals
+  useEffect(() => {
+    const cash = parseFloat(missionsCashAmount) || 0
+    const check = parseFloat(missionsCheckAmount) || 0
+    const total = cash + check
+    if (total > 0 && Math.abs(total - (parseFloat(missionsAmount) || 0)) > 0.01) {
+      setMissionsAmount(total.toFixed(2))
+    }
+  }, [missionsCashAmount, missionsCheckAmount])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -372,11 +464,20 @@ export default function WeeklyDepositForm({
       const result = await recordWeeklyDeposit({
         date,
         description: description || 'Weekly deposit',
-        checkingAccountId: checkingAccount.id,
+        accountAllocations: accountAllocations
+          .filter(alloc => parseFloat(alloc.amount) > 0)
+          .map(alloc => ({
+            accountId: alloc.accountId,
+            amount: parseFloat(alloc.amount)
+          })),
         generalFundId,
         generalIncomeAccountId,
         generalFundAmount: generalFundDeposit,
+        generalFundCashAmount: parseFloat(generalFundCashAmount) || undefined,
+        generalFundCheckAmount: parseFloat(generalFundCheckAmount) || undefined,
         missionsAmount: missionsTotal,
+        missionsCashAmount: parseFloat(missionsCashAmount) || undefined,
+        missionsCheckAmount: parseFloat(missionsCheckAmount) || undefined,
         missionsFundId: missionsFundId || undefined,
         designatedItems: designatedItems
           .filter((item: any) => parseFloat(item.amount) > 0)
@@ -409,12 +510,21 @@ export default function WeeklyDepositForm({
           // Find fund names for allocations
           const fundAllocations = []
           
+          // Helper function to parse amount - returns number if valid (including 0), undefined if empty
+          const parseAmount = (value: string): number | undefined => {
+            if (!value || value.trim() === '') return undefined
+            const parsed = parseFloat(value)
+            return isNaN(parsed) ? undefined : parsed
+          }
+          
           // Add general fund allocation
           const generalFund = funds.find(f => f.id === generalFundId)
           if (generalFund && generalFundDeposit > 0) {
             fundAllocations.push({
               fundName: generalFund.name,
               amount: generalFundDeposit,
+              cashAmount: parseAmount(generalFundCashAmount),
+              checkAmount: parseAmount(generalFundCheckAmount),
               isRestricted: generalFund.is_restricted,
             })
           }
@@ -426,6 +536,8 @@ export default function WeeklyDepositForm({
               fundAllocations.push({
                 fundName: missionsFund.name,
                 amount: missionsTotal,
+                cashAmount: parseAmount(missionsCashAmount),
+                checkAmount: parseAmount(missionsCheckAmount),
                 isRestricted: missionsFund.is_restricted,
               })
             }
@@ -440,6 +552,8 @@ export default function WeeklyDepositForm({
                 fundAllocations.push({
                   fundName: `${item.description} (${fund.name})`,
                   amount: parseFloat(item.amount),
+                  cashAmount: parseAmount(item.cashAmount || ''),
+                  checkAmount: parseAmount(item.checkAmount || ''),
                   isRestricted: fund.is_restricted,
                 })
               }
@@ -448,6 +562,18 @@ export default function WeeklyDepositForm({
           // Fetch church settings for PDF header
           const settings = await getChurchSettings()
           const address = await getFormattedChurchAddress()
+          
+          // Prepare account allocations for PDF
+          const accountAllocationsForPDF = accountAllocations
+            .filter(alloc => parseFloat(alloc.amount) > 0)
+            .map(alloc => {
+              const account = checkingAccounts.find(a => a.id === alloc.accountId)
+              return {
+                accountNumber: account?.account_number || 0,
+                accountName: account?.name || 'Unknown Account',
+                amount: parseFloat(alloc.amount),
+              }
+            })
           
           generateDepositReceiptPDF({
             depositId: result.journalEntryId || 'N/A',
@@ -479,6 +605,7 @@ export default function WeeklyDepositForm({
             totalEnvelopes,
             looseCash: looseCashAmount,
             fundAllocations,
+            accountAllocations: accountAllocationsForPDF.length > 1 ? accountAllocationsForPDF : undefined,
             finalTotal: finalTotalDeposit,
             logoUrl: settings.data?.logo_url || null,
             churchName: settings.data?.organization_name || 'Church Ledger Pro',
@@ -525,6 +652,9 @@ export default function WeeklyDepositForm({
     setMissionsAmount('')
     setDesignatedItems([])
     setDescription('Weekly deposit')
+    setAccountAllocations([
+      { id: '1', accountId: checkingAccounts[0]?.id || '', amount: '' }
+    ])
   }
 
   return (
@@ -1067,7 +1197,7 @@ export default function WeeklyDepositForm({
       {/* Missions Giving */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">🌍 Missions Giving</h3>
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid md:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Missions Fund</label>
             {(() => {
@@ -1089,7 +1219,7 @@ export default function WeeklyDepositForm({
             })()}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-gray-500">$</span>
               <input
@@ -1101,6 +1231,53 @@ export default function WeeklyDepositForm({
                 min="0"
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+        </div>
+        
+        {/* Cash/Check Breakdown */}
+        <div className="bg-white p-3 rounded border border-gray-300">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Cash/Check Breakdown</label>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Cash Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={missionsCashAmount}
+                  onChange={(e) => {
+                    setMissionsCashAmount(e.target.value)
+                    const cash = parseFloat(e.target.value) || 0
+                    const check = parseFloat(missionsCheckAmount) || 0
+                    setMissionsAmount((cash + check).toFixed(2))
+                  }}
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={missionsCheckAmount}
+                  onChange={(e) => {
+                    setMissionsCheckAmount(e.target.value)
+                    const cash = parseFloat(missionsCashAmount) || 0
+                    const check = parseFloat(e.target.value) || 0
+                    setMissionsAmount((cash + check).toFixed(2))
+                  }}
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1157,7 +1334,7 @@ export default function WeeklyDepositForm({
                     </select>
                   </div>
                 </div>
-                <div className="grid md:grid-cols-2 gap-2">
+                <div className="grid md:grid-cols-2 gap-2 mb-2">
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Description</label>
                     <input
@@ -1170,32 +1347,68 @@ export default function WeeklyDepositForm({
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-600 mb-1">Amount</label>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Total Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1 text-gray-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        value={item.amount}
+                        onChange={(e) => updateDesignatedItem(item.id, 'amount', e.target.value)}
+                        step="0.01"
+                        min="0"
+                        className="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Cash/Check Breakdown */}
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 mb-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Cash/Check Breakdown</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Cash</label>
                       <div className="relative">
-                        <span className="absolute left-2 top-1 text-gray-500 text-sm">$</span>
+                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
                         <input
                           type="number"
                           placeholder="0.00"
-                          value={item.amount}
-                          onChange={(e) => updateDesignatedItem(item.id, 'amount', e.target.value)}
+                          value={item.cashAmount || ''}
+                          onChange={(e) => updateDesignatedItem(item.id, 'cashAmount', e.target.value)}
                           step="0.01"
                           min="0"
-                          className="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
                     </div>
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={() => removeDesignatedItem(item.id)}
-                        className="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                      >
-                        ✕
-                      </button>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Check</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={item.checkAmount || ''}
+                          onChange={(e) => updateDesignatedItem(item.id, 'checkAmount', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => removeDesignatedItem(item.id)}
+                    className="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    ✕ Remove
+                  </button>
                 </div>
               </div>
             ))}
@@ -1215,7 +1428,7 @@ export default function WeeklyDepositForm({
       {/* General Fund Configuration */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">🏦 General Fund Settings</h3>
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid md:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               General Fund <span className="text-red-500">*</span>
@@ -1271,6 +1484,48 @@ export default function WeeklyDepositForm({
               }
               return null
             })()}
+          </div>
+        </div>
+        
+        {/* General Fund Cash/Check Breakdown */}
+        <div className="bg-white p-3 rounded border border-gray-300">
+          <label className="block text-sm font-medium text-gray-700 mb-2">General Fund Cash/Check Breakdown</label>
+          <p className="text-xs text-gray-600 mb-2">Specify how much of the General Fund deposit is cash vs checks</p>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Cash Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={generalFundCashAmount}
+                  onChange={(e) => setGeneralFundCashAmount(e.target.value)}
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={generalFundCheckAmount}
+                  onChange={(e) => setGeneralFundCheckAmount(e.target.value)}
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-gray-600">
+            <p>General Fund Total: <span className="font-semibold">${generalFundDeposit.toFixed(2)}</span></p>
+            <p>Cash + Check Entered: <span className="font-semibold">${((parseFloat(generalFundCashAmount) || 0) + (parseFloat(generalFundCheckAmount) || 0)).toFixed(2)}</span></p>
           </div>
         </div>
       </div>
@@ -1381,6 +1636,96 @@ export default function WeeklyDepositForm({
         </div>
       </div>
 
+      {/* Account Allocations */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">💰 Account Allocations</h3>
+          <button
+            type="button"
+            onClick={addAccountAllocation}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            + Add Account
+          </button>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Specify how much of the deposit goes to each account. Total must equal the final deposit amount above.
+        </p>
+
+        <div className="space-y-3">
+          {accountAllocations.map((alloc, index) => (
+            <div key={alloc.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Account {index + 1}
+                </label>
+                <select
+                  value={alloc.accountId}
+                  onChange={(e) => updateAccountAllocation(alloc.id, 'accountId', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {checkingAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.account_number} - {account.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={alloc.amount}
+                    onChange={(e) => updateAccountAllocation(alloc.id, 'amount', e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              {accountAllocations.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeAccountAllocation(alloc.id)}
+                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded border border-red-300"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Allocation Summary */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Total Allocated:</span>
+            <span className={`text-lg font-bold ${
+              accountAllocationsMatch === false ? 'text-red-600' : 
+              accountAllocationsMatch === true ? 'text-green-600' : 
+              'text-gray-900'
+            }`}>
+              ${totalAccountAllocations.toFixed(2)}
+            </span>
+          </div>
+          {accountAllocationsMatch === false && (
+            <p className="text-xs text-red-600 mt-1">
+              Must equal ${finalTotalDeposit.toFixed(2)} (difference: ${Math.abs(totalAccountAllocations - finalTotalDeposit).toFixed(2)})
+            </p>
+          )}
+          {accountAllocationsMatch === true && (
+            <p className="text-xs text-green-600 mt-1">
+              ✓ Allocations match deposit total
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -1408,7 +1753,7 @@ export default function WeeklyDepositForm({
       <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
         <p className="font-medium mb-1">📘 Double-Entry Logic:</p>
         <ul className="text-xs space-y-1">
-          <li>• Debit: {checkingAccount.name} (Total Deposit)</li>
+          <li>• Debit: Selected Account(s) - Deposit split across accounts based on allocations</li>
           <li>• Credit: General Fund Income (General portion)</li>
           {missionsTotal > 0 && <li>• Credit: Missions Fund (Missions portion)</li>}
           {designatedTotal > 0 && <li>• Credit: Designated Accounts (Designated portions)</li>}

@@ -4,7 +4,8 @@ import {
   fetchIncomeStatement, 
   fetchLast6MonthsIncomeExpense,
   fetchYTDIncomeExpense,
-  fetchYTDFundBalances
+  fetchYTDFundBalances,
+  fetchFundCashBalances
 } from '@/app/actions/reports'
 import DashboardChart from '@/components/DashboardChart'
 import { canEditTransactions } from '@/lib/auth/roles'
@@ -35,17 +36,34 @@ export default async function Home() {
     incomeStatementResult, 
     chartDataResult,
     ytdDataResult,
-    ytdFundBalancesResult
+    ytdFundBalancesResult,
+    fundCashBalancesResult
   ] = await Promise.all([
     fetchBalanceSheet(),
     fetchIncomeStatement(currentYear, currentMonth),
     fetchLast6MonthsIncomeExpense(),
     fetchYTDIncomeExpense(),
     fetchYTDFundBalances(),
+    fetchFundCashBalances(),
   ])
 
   // Calculate Total Cash on Hand (sum of all asset accounts)
   const totalCash = balanceSheetResult.data?.totalAssets || 0
+  
+  // Get cash balances by fund
+  const fundCashBalances = fundCashBalancesResult.data || []
+  
+  // Find specific funds (case-insensitive)
+  const operationalFund = fundCashBalances.find(f => 
+    f.fund_name.toLowerCase().includes('operational') || 
+    f.fund_name.toLowerCase().includes('general')
+  )
+  const missionsFund = fundCashBalances.find(f => 
+    f.fund_name.toLowerCase().includes('mission')
+  )
+  const pettyCashFund = fundCashBalances.find(f => 
+    f.fund_name.toLowerCase().includes('petty')
+  )
 
   // Get Month-to-Date Income and Expenses
   const mtdIncome = incomeStatementResult.data?.totalIncome || 0
@@ -188,11 +206,11 @@ export default async function Home() {
 
       {/* Stat Cards */}
       <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {/* Total Cash on Hand */}
+        {/* Cash on Hand - Breakdown by Fund */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Cash on Hand</p>
+              <p className="text-sm font-medium text-gray-600">Cash on Hand</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {formatCurrency(totalCash)}
               </p>
@@ -201,7 +219,49 @@ export default async function Home() {
               <span className="text-2xl">💰</span>
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-4">Total assets across all funds</p>
+          
+          {/* Fund Breakdown */}
+          <div className="space-y-2 mt-4 pt-4 border-t border-gray-200">
+            {operationalFund && (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Operational:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatCurrency(operationalFund.cash_balance)}
+                </span>
+              </div>
+            )}
+            {missionsFund && (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Missions:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatCurrency(missionsFund.cash_balance)}
+                </span>
+              </div>
+            )}
+            {pettyCashFund && (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Petty Cash:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatCurrency(pettyCashFund.cash_balance)}
+                </span>
+              </div>
+            )}
+            {/* Show other funds if they exist and the main ones aren't found */}
+            {!operationalFund && !missionsFund && !pettyCashFund && fundCashBalances.length > 0 && (
+              <div className="space-y-1">
+                {fundCashBalances.slice(0, 3).map(fund => (
+                  <div key={fund.fund_id} className="flex justify-between items-center">
+                    <span className="text-xs text-gray-600">{fund.fund_name}:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(fund.cash_balance)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <p className="text-xs text-gray-500 mt-4">Cash in bank accounts & petty cash</p>
         </div>
 
         {/* Total Income (MTD) */}
@@ -328,6 +388,12 @@ export default async function Home() {
                     YTD Expenses
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Transfers In
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Transfers Out
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Net Change
                   </th>
                 </tr>
@@ -353,6 +419,12 @@ export default async function Home() {
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600 font-medium">
                       {formatCurrency(fund.ytd_expenses)}
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
+                      {formatCurrency(fund.ytd_transfers_in)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-orange-600 font-medium">
+                      {formatCurrency(fund.ytd_transfers_out)}
+                    </td>
                     <td className={`px-4 py-3 whitespace-nowrap text-sm text-right font-bold ${
                       fund.net_change >= 0 ? 'text-blue-600' : 'text-orange-600'
                     }`}>
@@ -369,6 +441,12 @@ export default async function Home() {
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-red-700">
                     {formatCurrency(ytdFundBalances.reduce((sum, f) => sum + f.ytd_expenses, 0))}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-blue-700">
+                    {formatCurrency(ytdFundBalances.reduce((sum, f) => sum + f.ytd_transfers_in, 0))}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-orange-700">
+                    {formatCurrency(ytdFundBalances.reduce((sum, f) => sum + f.ytd_transfers_out, 0))}
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-blue-700">
                     {formatCurrency(ytdFundBalances.reduce((sum, f) => sum + f.net_change, 0))}
