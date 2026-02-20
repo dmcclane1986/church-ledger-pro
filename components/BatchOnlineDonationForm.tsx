@@ -541,7 +541,7 @@ export default function BatchOnlineDonationForm({
       <div className="bg-gray-50 border border-gray-200 rounded-md p-4 text-xs">
         <p className="font-semibold text-gray-900 mb-2">📘 Accounting Logic:</p>
         <ul className="space-y-1 text-gray-700">
-          <li>• <strong>Debit:</strong> {checkingAccount.name} for {formatCurrency(netDepositNum)}</li>
+          <li>• <strong>Debit:</strong> {checkingAccounts.find(acc => acc.id === checkingAccountId)?.name || 'Selected Account'} for {formatCurrency(netDepositNum)}</li>
           {processingFeesNum > 0 && (
             <li>• <strong>Debit:</strong> {feesAccount.name} for {formatCurrency(processingFeesNum)}</li>
           )}
