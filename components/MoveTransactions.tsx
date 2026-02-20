@@ -30,7 +30,7 @@ export default function MoveTransactions() {
     const loadAccounts = async () => {
       const result = await getAllActiveAccounts()
       if (result.success && result.data) {
-        const assetAccounts = result.data.filter(acc => acc.account_type === 'Asset')
+        const assetAccounts = result.data.filter((acc: Account) => acc.account_type === 'Asset')
         setAccounts(assetAccounts)
       }
     }
