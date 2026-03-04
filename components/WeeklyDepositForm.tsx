@@ -22,6 +22,9 @@ interface CheckEntry {
   referenceNumber: string
   amount: string
   donorId: string
+  fundType: 'general' | 'missions' | 'designated'
+  fundId?: string
+  accountId?: string
 }
 
 interface EnvelopeEntry {
@@ -30,6 +33,9 @@ interface EnvelopeEntry {
   donorName: string
   envelopeNumber: string
   amount: string
+  fundType: 'general' | 'missions' | 'designated'
+  fundId?: string
+  accountId?: string
 }
 
 interface DesignatedEntry {
@@ -57,8 +63,18 @@ export default function WeeklyDepositForm({
     accountId: string
     amount: string
   }
+  
+  // Find default account (1100 Operations Checking)
+  const getDefaultAccountId = () => {
+    const defaultAccount = checkingAccounts.find(
+      account => account.account_number === 1100 || 
+                 account.name.toLowerCase().includes('operations checking')
+    )
+    return defaultAccount?.id || checkingAccounts[0]?.id || ''
+  }
+  
   const [accountAllocations, setAccountAllocations] = useState<AccountAllocation[]>([
-    { id: '1', accountId: checkingAccounts[0]?.id || '', amount: '' }
+    { id: '1', accountId: getDefaultAccountId(), amount: '' }
   ])
 
   // Donor state
@@ -137,6 +153,19 @@ export default function WeeklyDepositForm({
       }
     }
   }, [funds, missionsFundId, generalFundId])
+
+  // Update check fundIds when missionsFundId or generalFundId changes
+  useEffect(() => {
+    setChecks(checks.map(check => {
+      if (check.fundType === 'missions' && missionsFundId && check.fundId !== missionsFundId) {
+        return { ...check, fundId: missionsFundId }
+      }
+      if (check.fundType === 'general' && generalFundId && check.fundId !== generalFundId) {
+        return { ...check, fundId: generalFundId }
+      }
+      return check
+    }))
+  }, [missionsFundId, generalFundId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select Tithes and Offerings income account on mount and when accounts change
   useEffect(() => {
@@ -220,6 +249,25 @@ export default function WeeklyDepositForm({
     return checks.reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0)
   }, [checks])
 
+  // Calculate checks by fund type
+  const generalFundChecks = useMemo(() => {
+    return checks
+      .filter(check => check.fundType === 'general' || !check.fundType)
+      .reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0)
+  }, [checks])
+
+  const missionsChecks = useMemo(() => {
+    return checks
+      .filter(check => check.fundType === 'missions')
+      .reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0)
+  }, [checks])
+
+  const designatedChecks = useMemo(() => {
+    return checks
+      .filter(check => check.fundType === 'designated')
+      .reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0)
+  }, [checks])
+
   // Validate manual check total against calculated total
   const checkTotalMatches = useMemo(() => {
     if (!manualCheckTotal || manualCheckTotal === '') return null // No validation if empty
@@ -234,44 +282,124 @@ export default function WeeklyDepositForm({
     return envelopes.reduce((sum, env) => sum + (parseFloat(env.amount) || 0), 0)
   }, [envelopes])
 
+  // Calculate envelopes by fund type
+  const generalFundEnvelopes = useMemo(() => {
+    return envelopes
+      .filter(env => env.fundType === 'general' || !env.fundType)
+      .reduce((sum, env) => sum + (parseFloat(env.amount) || 0), 0)
+  }, [envelopes])
+
+  const missionsEnvelopes = useMemo(() => {
+    return envelopes
+      .filter(env => env.fundType === 'missions')
+      .reduce((sum, env) => sum + (parseFloat(env.amount) || 0), 0)
+  }, [envelopes])
+
+  const designatedEnvelopes = useMemo(() => {
+    return envelopes
+      .filter(env => env.fundType === 'designated')
+      .reduce((sum, env) => sum + (parseFloat(env.amount) || 0), 0)
+  }, [envelopes])
+
   // Calculate loose cash amount
   const looseCashAmount = useMemo(() => {
     return parseFloat(looseCash) || 0
   }, [looseCash])
 
-  // Calculate total from envelopes + loose cash
-  const totalEnvelopeAndLooseCash = useMemo(() => {
-    return totalEnvelopes + looseCashAmount
-  }, [totalEnvelopes, looseCashAmount])
+  // Calculate missions loose cash (from missions section input)
+  // This is the loose cash portion only (not including envelopes)
+  const missionsLooseCashInput = useMemo(() => {
+    return parseFloat(missionsCashAmount) || 0
+  }, [missionsCashAmount])
 
-  // Validate calculated cash total (envelope + loose) against counted cash
+  // Missions cash amount = missions envelopes + missions loose cash
+  const missionsCashTotal = useMemo(() => {
+    return missionsEnvelopes + missionsLooseCashInput
+  }, [missionsEnvelopes, missionsLooseCashInput])
+
+  // Calculate general fund loose cash (loose cash minus missions loose cash)
+  // General fund loose cash = total loose cash - missions loose cash
+  const generalFundLooseCash = useMemo(() => {
+    return Math.max(0, looseCashAmount - missionsLooseCashInput)
+  }, [looseCashAmount, missionsLooseCashInput])
+
+  // Calculate total cash breakdown: missions(envelope) + missions(loose) + general
+  const calculatedTotalCash = useMemo(() => {
+    return missionsEnvelopes + missionsLooseCashInput + generalFundEnvelopes + generalFundLooseCash
+  }, [missionsEnvelopes, missionsLooseCashInput, generalFundEnvelopes, generalFundLooseCash])
+
+  // Validate calculated cash total against counted cash
   const cashTotalMatches = useMemo(() => {
-    // Only validate if there's actual cash entered (envelope or loose cash)
-    if (totalEnvelopeAndLooseCash === 0 && totalCash === 0) return null // Both zero, no validation needed
-    if (totalEnvelopeAndLooseCash === 0) return null // No envelope/loose cash entered yet
+    // Only validate if there's actual cash entered
+    if (calculatedTotalCash === 0 && totalCash === 0) return null // Both zero, no validation needed
+    if (calculatedTotalCash === 0) return null // No cash entered yet
     // Allow small floating point differences (within 0.01)
-    return Math.abs(totalEnvelopeAndLooseCash - totalCash) < 0.01
-  }, [totalEnvelopeAndLooseCash, totalCash])
+    return Math.abs(calculatedTotalCash - totalCash) < 0.01
+  }, [calculatedTotalCash, totalCash])
 
-  // Calculate missions amount
+  // Calculate missions amount (cash = envelopes + loose) + missions checks
+  // Note: missionsCheckAmount field is only for reporting/breakdown, not for calculation
   const missionsTotal = useMemo(() => {
-    return parseFloat(missionsAmount) || 0
-  }, [missionsAmount])
+    // Missions cash = missions envelopes + missions loose cash
+    return missionsCashTotal + missionsChecks
+  }, [missionsCashTotal, missionsChecks])
 
-  // Calculate designated total
+  // Calculate missions amount that affects general fund
+  // Missions envelopes don't count toward general fund
+  // Missions cash only affects general fund if it's MORE than missions envelopes
+  const missionsAmountForGeneralFund = useMemo(() => {
+    const missionsCash = parseFloat(missionsCashAmount) || 0
+    // Only count missions cash if it exceeds missions envelopes
+    const excessMissionsCash = missionsCash > missionsEnvelopes ? missionsCash - missionsEnvelopes : 0
+    return missionsChecks + excessMissionsCash
+  }, [missionsCashAmount, missionsChecks, missionsEnvelopes])
+
+  // Calculate designated total (designated items + designated checks + designated envelopes)
   const designatedTotal = useMemo(() => {
-    return designatedItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
-  }, [designatedItems])
+    const designatedItemsTotal = designatedItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
+    return designatedItemsTotal + designatedChecks + designatedEnvelopes
+  }, [designatedItems, designatedChecks, designatedEnvelopes])
 
-  // Calculate deposit summary
+  // Calculate total deposit (all checks + envelopes + loose cash)
+  const totalDeposit = useMemo(() => {
+    return totalChecks + totalEnvelopes + looseCashAmount
+  }, [totalChecks, totalEnvelopes, looseCashAmount])
+
+  // Calculate General Fund cash and check amounts
+  const calculatedGeneralFundCash = useMemo(() => {
+    return generalFundEnvelopes + generalFundLooseCash
+  }, [generalFundEnvelopes, generalFundLooseCash])
+
+  const calculatedGeneralFundChecks = useMemo(() => {
+    return generalFundChecks
+  }, [generalFundChecks])
+
+  // Calculate deposit summary (general fund = total deposit - missions - designated)
+  // Total deposit includes cash and checks, so we subtract missions and designated totals
   const generalFundDeposit = useMemo(() => {
-    return totalChecks + totalEnvelopes + looseCashAmount - missionsTotal - designatedTotal
-  }, [totalChecks, totalEnvelopes, looseCashAmount, missionsTotal, designatedTotal])
+    // General fund = Total Deposit (cash + checks) - Missions Total - Designated Total
+    // This ensures we account for both cash and checks properly
+    return totalDeposit - missionsTotal - designatedTotal
+  }, [totalDeposit, missionsTotal, designatedTotal])
+
+  // Auto-update General Fund cash/check amounts if they don't match calculated values
+  useEffect(() => {
+    const enteredCash = parseFloat(generalFundCashAmount) || 0
+    const enteredCheck = parseFloat(generalFundCheckAmount) || 0
+    
+    // Only auto-update if values are significantly different (more than 0.01)
+    if (Math.abs(enteredCash - calculatedGeneralFundCash) > 0.01) {
+      setGeneralFundCashAmount(calculatedGeneralFundCash.toFixed(2))
+    }
+    if (Math.abs(enteredCheck - calculatedGeneralFundChecks) > 0.01) {
+      setGeneralFundCheckAmount(calculatedGeneralFundChecks.toFixed(2))
+    }
+  }, [calculatedGeneralFundCash, calculatedGeneralFundChecks])
 
   const finalTotalDeposit = useMemo(() => {
-    // Final deposit = sum of all fund allocations
-    return generalFundDeposit + missionsTotal + designatedTotal
-  }, [generalFundDeposit, missionsTotal, designatedTotal])
+    // Final deposit = total of all checks, envelopes, and loose cash
+    return totalDeposit
+  }, [totalDeposit])
 
   // Calculate total allocated to accounts
   const totalAccountAllocations = useMemo(() => {
@@ -288,7 +416,7 @@ export default function WeeklyDepositForm({
   const addAccountAllocation = () => {
     setAccountAllocations([
       ...accountAllocations,
-      { id: Date.now().toString(), accountId: checkingAccounts[0]?.id || '', amount: '' }
+      { id: Date.now().toString(), accountId: getDefaultAccountId(), amount: '' }
     ])
   }
 
@@ -316,22 +444,62 @@ export default function WeeklyDepositForm({
 
   // Check entry handlers
   const addCheck = () => {
-    setChecks([...checks, { id: Date.now().toString(), referenceNumber: '', amount: '', donorId: '' }])
+    setChecks([...checks, { 
+      id: Date.now().toString(), 
+      referenceNumber: '', 
+      amount: '', 
+      donorId: '',
+      fundType: 'general',
+      fundId: generalFundId,
+    }])
   }
 
   const removeCheck = (id: string) => {
     setChecks(checks.filter((c) => c.id !== id))
   }
 
-  const updateCheck = (id: string, field: 'referenceNumber' | 'amount' | 'donorId', value: string) => {
-    setChecks(checks.map((c) => (c.id === id ? { ...c, [field]: value } : c)))
+  const updateCheck = (
+    id: string, 
+    field: 'referenceNumber' | 'amount' | 'donorId' | 'fundType' | 'fundId' | 'accountId', 
+    value: string
+  ) => {
+    setChecks(checks.map((c) => {
+      if (c.id !== id) return c
+      
+      const updated = { ...c, [field]: value }
+      
+      // Auto-set fundId based on fundType
+      if (field === 'fundType') {
+        if (value === 'general') {
+          updated.fundId = generalFundId
+          updated.accountId = undefined
+        } else if (value === 'missions') {
+          updated.fundId = missionsFundId || undefined
+          updated.accountId = undefined
+        } else if (value === 'designated') {
+          // Keep existing fundId/accountId or set defaults
+          if (!updated.fundId) updated.fundId = funds[0]?.id || undefined
+          if (!updated.accountId) updated.accountId = incomeAccounts[0]?.id || undefined
+        }
+      }
+      
+      return updated
+    }))
   }
 
   // Envelope entry handlers
   const addEnvelope = () => {
     setEnvelopes([
       ...envelopes,
-      { id: Date.now().toString(), donorId: '', donorName: '', envelopeNumber: '', amount: '' },
+      { 
+        id: Date.now().toString(), 
+        donorId: '', 
+        donorName: '', 
+        envelopeNumber: '', 
+        amount: '',
+        fundType: 'general',
+        fundId: generalFundId,
+      },
     ])
   }
 
@@ -341,10 +509,31 @@ export default function WeeklyDepositForm({
 
   const updateEnvelope = (
     id: string,
-    field: 'donorId' | 'donorName' | 'envelopeNumber' | 'amount',
+    field: 'donorId' | 'donorName' | 'envelopeNumber' | 'amount' | 'fundType' | 'fundId' | 'accountId',
     value: string
   ) => {
-    setEnvelopes(envelopes.map((e) => (e.id === id ? { ...e, [field]: value } : e)))
+    setEnvelopes(envelopes.map((e) => {
+      if (e.id !== id) return e
+      
+      const updated = { ...e, [field]: value }
+      
+      // Auto-set fundId based on fundType
+      if (field === 'fundType') {
+        if (value === 'general') {
+          updated.fundId = generalFundId
+          updated.accountId = undefined
+        } else if (value === 'missions') {
+          updated.fundId = missionsFundId || undefined
+          updated.accountId = undefined
+        } else if (value === 'designated') {
+          // Keep existing fundId/accountId or set defaults
+          if (!updated.fundId) updated.fundId = funds[0]?.id || undefined
+          if (!updated.accountId) updated.accountId = incomeAccounts[0]?.id || undefined
+        }
+      }
+      
+      return updated
+    }))
   }
 
   // Designated entry handlers
@@ -396,15 +585,15 @@ export default function WeeklyDepositForm({
     // Don't auto-update if user is manually entering amounts
   }, [generalFundCashAmount, generalFundCheckAmount])
   
-  // Auto-calculate missions cash/check totals
+  // Auto-calculate missions total (cash = envelopes + loose) + checks
   useEffect(() => {
-    const cash = parseFloat(missionsCashAmount) || 0
+    const cash = missionsCashTotal
     const check = parseFloat(missionsCheckAmount) || 0
     const total = cash + check
     if (total > 0 && Math.abs(total - (parseFloat(missionsAmount) || 0)) > 0.01) {
       setMissionsAmount(total.toFixed(2))
     }
-  }, [missionsCashAmount, missionsCheckAmount])
+  }, [missionsCashTotal, missionsCheckAmount, missionsAmount])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -434,9 +623,9 @@ export default function WeeklyDepositForm({
       }
     }
 
-    // Validate cash total (envelope + loose cash vs counted cash)
-    if (totalEnvelopeAndLooseCash > 0 && Math.abs(totalEnvelopeAndLooseCash - totalCash) >= 0.01) {
-      setError(`Cash total mismatch! Envelope + loose cash total is $${totalEnvelopeAndLooseCash.toFixed(2)} but the counted cash total is $${totalCash.toFixed(2)}. Please verify your amounts.`)
+    // Validate cash total: missions(envelope) + missions(loose) + general = counted cash
+    if (calculatedTotalCash > 0 && Math.abs(calculatedTotalCash - totalCash) >= 0.01) {
+      setError(`Cash total mismatch! Calculated total (Missions envelopes: $${missionsEnvelopes.toFixed(2)} + Missions loose: $${missionsLooseCashInput.toFixed(2)} + General envelopes: $${generalFundEnvelopes.toFixed(2)} + General loose: $${generalFundLooseCash.toFixed(2)} = $${calculatedTotalCash.toFixed(2)}) does not match counted cash total ($${totalCash.toFixed(2)}). Please verify your amounts.`)
       setLoading(false)
       return
     }
@@ -453,9 +642,41 @@ export default function WeeklyDepositForm({
       return
     }
 
-    // Validate that general fund deposit is not negative
+    // Validate checks have required fields based on fund type
+    for (const check of checks) {
+      if (parseFloat(check.amount) > 0) {
+        if (check.fundType === 'missions' && (!check.fundId || !missionsFundId)) {
+          setError(`Check #${check.referenceNumber || 'unnamed'}: Missions fund must be selected`)
+          setLoading(false)
+          return
+        }
+        if (check.fundType === 'designated' && (!check.fundId || !check.accountId)) {
+          setError(`Check #${check.referenceNumber || 'unnamed'}: Designated checks must have both fund and account selected`)
+          setLoading(false)
+          return
+        }
+      }
+    }
+
+    // Validate envelopes have required fields based on fund type
+    for (const envelope of envelopes) {
+      if (parseFloat(envelope.amount) > 0) {
+        if (envelope.fundType === 'missions' && (!envelope.fundId || !missionsFundId)) {
+          setError(`Envelope donation: Missions fund must be selected`)
+          setLoading(false)
+          return
+        }
+        if (envelope.fundType === 'designated' && (!envelope.fundId || !envelope.accountId)) {
+          setError(`Envelope donation: Designated envelopes must have both fund and account selected`)
+          setLoading(false)
+          return
+        }
+      }
+    }
+
+    // Validate that general fund deposit is not negative (missions + designated cannot exceed total deposit)
     if (generalFundDeposit < 0) {
-      setError('General fund deposit cannot be negative. Check your missions and designated amounts.')
+      setError(`General fund deposit cannot be negative. Missions ($${missionsTotal.toFixed(2)}) + Designated ($${designatedTotal.toFixed(2)}) = $${(missionsTotal + designatedTotal).toFixed(2)}, which exceeds total deposit ($${totalDeposit.toFixed(2)}). Please verify your amounts.`)
       setLoading(false)
       return
     }
@@ -473,10 +694,10 @@ export default function WeeklyDepositForm({
         generalFundId,
         generalIncomeAccountId,
         generalFundAmount: generalFundDeposit,
-        generalFundCashAmount: parseFloat(generalFundCashAmount) || undefined,
-        generalFundCheckAmount: parseFloat(generalFundCheckAmount) || undefined,
+        generalFundCashAmount: calculatedGeneralFundCash || undefined,
+        generalFundCheckAmount: calculatedGeneralFundChecks || undefined,
         missionsAmount: missionsTotal,
-        missionsCashAmount: parseFloat(missionsCashAmount) || undefined,
+        missionsCashAmount: missionsCashTotal || undefined,
         missionsCheckAmount: parseFloat(missionsCheckAmount) || undefined,
         missionsFundId: missionsFundId || undefined,
         designatedItems: designatedItems
@@ -493,12 +714,18 @@ export default function WeeklyDepositForm({
             referenceNumber: check.referenceNumber,
             amount: parseFloat(check.amount),
             donorId: check.donorId || undefined,
+            fundType: check.fundType,
+            fundId: check.fundId || undefined,
+            accountId: check.accountId || undefined,
           })),
         envelopes: envelopes
           .filter((env) => parseFloat(env.amount) > 0)
           .map((env) => ({
             donorId: env.donorId || undefined,
             amount: parseFloat(env.amount),
+            fundType: env.fundType,
+            fundId: env.fundId || undefined,
+            accountId: env.accountId || undefined,
           })),
       })
 
@@ -523,8 +750,8 @@ export default function WeeklyDepositForm({
             fundAllocations.push({
               fundName: generalFund.name,
               amount: generalFundDeposit,
-              cashAmount: parseAmount(generalFundCashAmount),
-              checkAmount: parseAmount(generalFundCheckAmount),
+              cashAmount: parseAmount(calculatedGeneralFundCash.toString()),
+              checkAmount: parseAmount(calculatedGeneralFundChecks.toString()),
               isRestricted: generalFund.is_restricted,
             })
           }
@@ -536,7 +763,7 @@ export default function WeeklyDepositForm({
               fundAllocations.push({
                 fundName: missionsFund.name,
                 amount: missionsTotal,
-                cashAmount: parseAmount(missionsCashAmount),
+                cashAmount: parseAmount(missionsCashTotal.toString()),
                 checkAmount: parseAmount(missionsCheckAmount),
                 isRestricted: missionsFund.is_restricted,
               })
@@ -632,6 +859,12 @@ export default function WeeklyDepositForm({
   }
 
   const resetForm = () => {
+    // Reset date to today
+    setDate(getTodayLocalDate())
+    // Reset description
+    setDescription('Weekly deposit')
+    
+    // Reset denomination counters
     setHundreds('')
     setFifties('')
     setTwenties('')
@@ -645,15 +878,33 @@ export default function WeeklyDepositForm({
     setDimes('')
     setNickels('')
     setPennies('')
+    
+    // Reset checks
     setChecks([])
     setManualCheckTotal('')
+    
+    // Reset envelopes
     setEnvelopes([])
+    
+    // Reset loose cash
     setLooseCash('')
+    
+    // Reset missions fields
     setMissionsAmount('')
+    setMissionsCashAmount('')
+    setMissionsCheckAmount('')
+    setMissionsFundId('')
+    
+    // Reset general fund cash/check amounts (these are auto-calculated but should be cleared)
+    setGeneralFundCashAmount('')
+    setGeneralFundCheckAmount('')
+    
+    // Reset designated items
     setDesignatedItems([])
-    setDescription('Weekly deposit')
+    
+    // Reset account allocations to default
     setAccountAllocations([
-      { id: '1', accountId: checkingAccounts[0]?.id || '', amount: '' }
+      { id: '1', accountId: getDefaultAccountId(), amount: '' }
     ])
   }
 
@@ -689,44 +940,222 @@ export default function WeeklyDepositForm({
         </div>
       </div>
 
-      {/* Total Check Amount Input for Verification */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">📝 Total Check Amount (Verification)</h3>
-        <p className="text-xs text-gray-600 mb-3">Enter the total check amount to verify against check entries below</p>
-        <div className="relative mb-3">
-          <span className="absolute left-3 top-2 text-gray-500">$</span>
-          <input
-            type="number"
-            placeholder="0.00"
-            value={manualCheckTotal}
-            onChange={(e) => setManualCheckTotal(e.target.value)}
-            step="0.01"
-            min="0"
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Section: Checks and Loose Cash - Side by Side */}
+      <div className="grid md:grid-cols-2 gap-6 border-t-2 border-gray-300 pt-6">
+        {/* Checks Column */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">💳 Checks</h2>
+          
+          {/* Total Check Amount Input for Verification */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">📝 Total Check Amount (Verification)</h3>
+            <p className="text-xs text-gray-600 mb-3">Enter the total check amount to verify against check entries below</p>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-2 text-gray-500">$</span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={manualCheckTotal}
+                onChange={(e) => setManualCheckTotal(e.target.value)}
+                step="0.01"
+                min="0"
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {checkTotalMatches === true && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600">✓</span>
+                  <span className="text-sm text-green-800">Check total matches! (${totalChecks.toFixed(2)})</span>
+                </div>
+              </div>
+            )}
+            {checkTotalMatches === false && manualCheckTotal && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-red-600">⚠</span>
+                  <span className="text-sm text-red-800">Check total doesn't match entries</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        {checkTotalMatches === true && (
-          <div className="bg-green-50 border border-green-200 rounded-md p-2">
-            <div className="flex items-center gap-2">
-              <span className="text-green-600">✓</span>
-              <span className="text-sm text-green-800">Check total matches! (${totalChecks.toFixed(2)})</span>
+
+        {/* Loose Cash Column */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">💵 Loose Cash</h2>
+          
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">💸 Loose Cash</h3>
+            <p className="text-xs text-gray-600 mb-3">Non envelope cash</p>
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-gray-500">$</span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={looseCash}
+                onChange={(e) => setLooseCash(e.target.value)}
+                step="0.01"
+                min="0"
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
-        )}
-        {checkTotalMatches === true && (
-          <div className="bg-green-50 border border-green-200 rounded-md p-2">
-            <div className="flex items-center gap-2">
-              <span className="text-green-600">✓</span>
-              <span className="text-sm text-green-800">Check total matches!</span>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Donor & Envelope Tracking */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">✉️ Envelope Cash</h3>
+      {/* Section: Check Entries - Full Width */}
+      <div className="border-t-2 border-gray-300 pt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">📝 Check Entries</h2>
+        
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-gray-900">Check Entries</h3>
+            <button
+              type="button"
+              onClick={addCheck}
+              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              + Add Check
+            </button>
+          </div>
+
+          {checks.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">No checks added yet</p>
+          ) : (
+            <div className="space-y-3">
+              {checks.map((check) => (
+                <div key={check.id} className="bg-white p-3 rounded border border-gray-200">
+                  <div className="grid grid-cols-12 gap-2 items-start">
+                    {/* Check Number */}
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">Check #</label>
+                      <input
+                        type="text"
+                        placeholder="Check #"
+                        value={check.referenceNumber}
+                        onChange={(e) => updateCheck(check.id, 'referenceNumber', e.target.value)}
+                        className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    
+                    {/* Amount */}
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">Amount</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={check.amount}
+                          onChange={(e) => updateCheck(check.id, 'amount', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          className="w-full pl-6 pr-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Fund Type */}
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">Fund Type</label>
+                      <select
+                        value={check.fundType}
+                        onChange={(e) => updateCheck(check.id, 'fundType', e.target.value)}
+                        className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="general">General Fund</option>
+                        <option value="missions">Missions</option>
+                        <option value="designated">Designated</option>
+                      </select>
+                    </div>
+                    
+                    {/* Designated Fund and Account (only show if designated is selected) */}
+                    {check.fundType === 'designated' && (
+                      <>
+                        <div className="col-span-1">
+                          <label className="block text-xs text-gray-600 mb-1">Designated Fund</label>
+                          <select
+                            value={check.fundId || ''}
+                            onChange={(e) => updateCheck(check.id, 'fundId', e.target.value)}
+                            className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">-- Select Fund --</option>
+                            {funds.map((fund) => (
+                              <option key={fund.id} value={fund.id}>
+                                {fund.name} {fund.is_restricted && '(Restricted)'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-1">
+                          <label className="block text-xs text-gray-600 mb-1">Designated Account</label>
+                          <select
+                            value={check.accountId || ''}
+                            onChange={(e) => updateCheck(check.id, 'accountId', e.target.value)}
+                            className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">-- Select Account --</option>
+                            {incomeAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Donor */}
+                    <div className={check.fundType === 'designated' ? 'col-span-3' : 'col-span-5'}>
+                      <label className="block text-xs text-gray-600 mb-1">Donor (For Tax Records)</label>
+                      <select
+                        value={check.donorId}
+                        onChange={(e) => updateCheck(check.id, 'donorId', e.target.value)}
+                        className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">-- Select Donor --</option>
+                        {donors.map((donor) => (
+                          <option key={donor.id} value={donor.id}>
+                            {donor.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Remove Button */}
+                    <div className="col-span-1 flex items-end justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeCheck(check.id)}
+                        className="px-2 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-700">Total Checks:</span>
+              <span className="text-lg font-bold text-green-600">${totalChecks.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section: Envelopes */}
+      <div className="border-t-2 border-gray-300 pt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">✉️ Envelopes</h2>
+        
+        {/* Donor & Envelope Tracking */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-gray-900">Envelope Cash</h3>
           <div className="flex gap-2">
             <a
               href="/donors/new"
@@ -764,6 +1193,46 @@ export default function WeeklyDepositForm({
                     </option>
                   ))}
                 </select>
+                <select
+                  value={envelope.fundType || 'general'}
+                  onChange={(e) => updateEnvelope(envelope.id, 'fundType', e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  style={{ width: '120px' }}
+                >
+                  <option value="general">General</option>
+                  <option value="missions">Missions</option>
+                  <option value="designated">Designated</option>
+                </select>
+                {envelope.fundType === 'designated' && (
+                  <>
+                    <select
+                      value={envelope.fundId || ''}
+                      onChange={(e) => updateEnvelope(envelope.id, 'fundId', e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ width: '120px' }}
+                    >
+                      <option value="">-- Fund --</option>
+                      {funds.map((fund) => (
+                        <option key={fund.id} value={fund.id}>
+                          {fund.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={envelope.accountId || ''}
+                      onChange={(e) => updateEnvelope(envelope.id, 'accountId', e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ width: '120px' }}
+                    >
+                      <option value="">-- Account --</option>
+                      {incomeAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 <div className="relative flex-1">
                   <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
                   <input
@@ -794,29 +1263,16 @@ export default function WeeklyDepositForm({
             <span className="text-lg font-bold text-green-600">${totalEnvelopes.toFixed(2)}</span>
           </div>
         </div>
-      </div>
-
-      {/* Loose Cash */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">💸 Loose Cash</h3>
-        <div className="relative">
-          <span className="absolute left-3 top-2 text-gray-500">$</span>
-          <input
-            type="number"
-            placeholder="0.00"
-            value={looseCash}
-            onChange={(e) => setLooseCash(e.target.value)}
-            step="0.01"
-            min="0"
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
         </div>
       </div>
 
-
-      {/* Cash & Coin Counter */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">💵 Cash & Coin Counter</h3>
+      {/* Section: Cash & Coin Counter */}
+      <div className="border-t-2 border-gray-300 pt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">💵 Cash & Coin Counter</h2>
+        
+        {/* Cash & Coin Counter */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">💵 Cash & Coin Counter</h3>
         <p className="text-xs text-gray-600 mb-3">Enter the total value for each denomination</p>
         
         {/* Currency */}
@@ -1102,102 +1558,81 @@ export default function WeeklyDepositForm({
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Check Entry Table */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">📝 Check Entries</h3>
-          <button
-            type="button"
-            onClick={addCheck}
-            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            + Add Check
-          </button>
         </div>
-
-        {checks.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No checks added yet</p>
-        ) : (
-          <div className="space-y-3">
-            {checks.map((check) => (
-              <div key={check.id} className="bg-white p-3 rounded border border-gray-200">
-                <div className="grid grid-cols-12 gap-2 items-start">
-                  {/* Check Number */}
-                  <div className="col-span-3">
-                    <label className="block text-xs text-gray-600 mb-1">Check #</label>
-                    <input
-                      type="text"
-                      placeholder="Check #"
-                      value={check.referenceNumber}
-                      onChange={(e) => updateCheck(check.id, 'referenceNumber', e.target.value)}
-                      className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  {/* Amount */}
-                  <div className="col-span-3">
-                    <label className="block text-xs text-gray-600 mb-1">Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-2 text-gray-500 text-sm">$</span>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={check.amount}
-                        onChange={(e) => updateCheck(check.id, 'amount', e.target.value)}
-                        step="0.01"
-                        min="0"
-                        className="w-full pl-6 pr-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Donor */}
-                  <div className="col-span-5">
-                    <label className="block text-xs text-gray-600 mb-1">Donor (Optional - For Records Only)</label>
-                    <select
-                      value={check.donorId}
-                      onChange={(e) => updateCheck(check.id, 'donorId', e.target.value)}
-                      className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">-- Select Donor --</option>
-                      {donors.map((donor) => (
-                        <option key={donor.id} value={donor.id}>
-                          {donor.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {/* Remove Button */}
-                  <div className="col-span-1 flex items-end justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeCheck(check.id)}
-                      className="px-2 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      ✕
-                    </button>
-                  </div>
+      {/* Section: Fund Allocations */}
+      <div className="border-t-2 border-gray-300 pt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">💰 Fund Allocations</h2>
+        
+        {/* Missions Giving */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">🌍 Missions Giving</h3>
+        
+        {/* Cash/Check Breakdown - Moved to top */}
+        <div className="bg-white p-3 rounded border border-gray-300 mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Cash/Check Breakdown</label>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Cash Amount (Envelopes + Loose)</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={missionsCashTotal.toFixed(2)}
+                  readOnly
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50"
+                />
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                <span>Envelopes: ${missionsEnvelopes.toFixed(2)}</span>
+                <span className="ml-2">+ Loose: ${missionsLooseCashInput.toFixed(2)}</span>
+              </div>
+              <div className="mt-1">
+                <label className="block text-xs text-gray-600 mb-1">Loose Cash Only</label>
+                <div className="relative">
+                  <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={missionsCashAmount}
+                    onChange={(e) => {
+                      setMissionsCashAmount(e.target.value)
+                      const looseCash = parseFloat(e.target.value) || 0
+                      const cash = missionsEnvelopes + looseCash
+                      const check = parseFloat(missionsCheckAmount) || 0
+                      setMissionsAmount((cash + check).toFixed(2))
+                    }}
+                    step="0.01"
+                    min="0"
+                    className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-700">Total Checks:</span>
-            <span className="text-lg font-bold text-green-600">${totalChecks.toFixed(2)}</span>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={missionsCheckAmount}
+                  onChange={(e) => {
+                    setMissionsCheckAmount(e.target.value)
+                    const cash = parseFloat(missionsCashAmount) || 0
+                    const check = parseFloat(e.target.value) || 0
+                    setMissionsAmount((cash + check).toFixed(2))
+                  }}
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Missions Giving */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">🌍 Missions Giving</h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
+        
+        <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Missions Fund</label>
             {(() => {
@@ -1234,59 +1669,12 @@ export default function WeeklyDepositForm({
             </div>
           </div>
         </div>
-        
-        {/* Cash/Check Breakdown */}
-        <div className="bg-white p-3 rounded border border-gray-300">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Cash/Check Breakdown</label>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Cash Amount</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={missionsCashAmount}
-                  onChange={(e) => {
-                    setMissionsCashAmount(e.target.value)
-                    const cash = parseFloat(e.target.value) || 0
-                    const check = parseFloat(missionsCheckAmount) || 0
-                    setMissionsAmount((cash + check).toFixed(2))
-                  }}
-                  step="0.01"
-                  min="0"
-                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={missionsCheckAmount}
-                  onChange={(e) => {
-                    setMissionsCheckAmount(e.target.value)
-                    const cash = parseFloat(missionsCashAmount) || 0
-                    const check = parseFloat(e.target.value) || 0
-                    setMissionsAmount((cash + check).toFixed(2))
-                  }}
-                  step="0.01"
-                  min="0"
-                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Designated Items */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">🎯 Designated Items</h3>
+        {/* Designated Items */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-gray-900">🎯 Designated Items</h3>
           <button
             type="button"
             onClick={addDesignatedItem}
@@ -1302,6 +1690,43 @@ export default function WeeklyDepositForm({
           <div className="space-y-3">
             {designatedItems.map((item: any) => (
               <div key={item.id} className="bg-white p-3 rounded border border-gray-200">
+                {/* Cash/Check Breakdown - Moved to top */}
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 mb-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Cash/Check Breakdown</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Cash</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={item.cashAmount || ''}
+                          onChange={(e) => updateDesignatedItem(item.id, 'cashAmount', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Check</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={item.checkAmount || ''}
+                          onChange={(e) => updateDesignatedItem(item.id, 'checkAmount', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="grid md:grid-cols-2 gap-2 mb-2">
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Account</label>
@@ -1364,43 +1789,6 @@ export default function WeeklyDepositForm({
                   </div>
                 </div>
                 
-                {/* Cash/Check Breakdown */}
-                <div className="bg-gray-50 p-2 rounded border border-gray-200 mb-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Cash/Check Breakdown</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Cash</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
-                        <input
-                          type="number"
-                          placeholder="0.00"
-                          value={item.cashAmount || ''}
-                          onChange={(e) => updateDesignatedItem(item.id, 'cashAmount', e.target.value)}
-                          step="0.01"
-                          min="0"
-                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Check</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1 text-gray-500 text-xs">$</span>
-                        <input
-                          type="number"
-                          placeholder="0.00"
-                          value={item.checkAmount || ''}
-                          onChange={(e) => updateDesignatedItem(item.id, 'checkAmount', e.target.value)}
-                          step="0.01"
-                          min="0"
-                          className="w-full pl-5 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -1423,12 +1811,61 @@ export default function WeeklyDepositForm({
             </span>
           </div>
         </div>
+        </div>
       </div>
 
       {/* General Fund Configuration */}
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">🏦 General Fund Settings</h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-3">
+        
+        {/* General Fund Cash/Check Breakdown - Moved to top */}
+        <div className="bg-white p-3 rounded border border-gray-300 mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">General Fund Cash/Check Breakdown</label>
+          <p className="text-xs text-gray-600 mb-2">Specify how much of the General Fund deposit is cash vs checks</p>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Cash Amount (Envelopes + Loose)</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={calculatedGeneralFundCash.toFixed(2)}
+                  readOnly
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50"
+                />
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                <span>Envelopes: ${generalFundEnvelopes.toFixed(2)}</span>
+                <span className="ml-2">+ Loose: ${generalFundLooseCash.toFixed(2)}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={calculatedGeneralFundChecks.toFixed(2)}
+                  readOnly
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-gray-600">
+            <p>General Fund Total: <span className="font-semibold">${generalFundDeposit.toFixed(2)}</span></p>
+            <p>Cash + Check Calculated: <span className="font-semibold">${(calculatedGeneralFundCash + calculatedGeneralFundChecks).toFixed(2)}</span></p>
+            {Math.abs((calculatedGeneralFundCash + calculatedGeneralFundChecks) - generalFundDeposit) > 0.01 && (
+              <p className="text-red-600 font-semibold mt-1">
+                ⚠️ Cash + Check (${(calculatedGeneralFundCash + calculatedGeneralFundChecks).toFixed(2)}) does not match General Fund Total (${generalFundDeposit.toFixed(2)})
+              </p>
+            )}
+          </div>
+        </div>
+        
+        <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               General Fund <span className="text-red-500">*</span>
@@ -1486,48 +1923,6 @@ export default function WeeklyDepositForm({
             })()}
           </div>
         </div>
-        
-        {/* General Fund Cash/Check Breakdown */}
-        <div className="bg-white p-3 rounded border border-gray-300">
-          <label className="block text-sm font-medium text-gray-700 mb-2">General Fund Cash/Check Breakdown</label>
-          <p className="text-xs text-gray-600 mb-2">Specify how much of the General Fund deposit is cash vs checks</p>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Cash Amount</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={generalFundCashAmount}
-                  onChange={(e) => setGeneralFundCashAmount(e.target.value)}
-                  step="0.01"
-                  min="0"
-                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Check Amount</label>
-              <div className="relative">
-                <span className="absolute left-2 top-1.5 text-gray-500 text-sm">$</span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={generalFundCheckAmount}
-                  onChange={(e) => setGeneralFundCheckAmount(e.target.value)}
-                  step="0.01"
-                  min="0"
-                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-gray-600">
-            <p>General Fund Total: <span className="font-semibold">${generalFundDeposit.toFixed(2)}</span></p>
-            <p>Cash + Check Entered: <span className="font-semibold">${((parseFloat(generalFundCashAmount) || 0) + (parseFloat(generalFundCheckAmount) || 0)).toFixed(2)}</span></p>
-          </div>
-        </div>
       </div>
 
       {/* Check Total Discrepancy Warning - Only shown if there's a mismatch */}
@@ -1546,100 +1941,39 @@ export default function WeeklyDepositForm({
           </div>
         </div>
       )}
+      </div>
 
       {/* Cash Total Discrepancy Warning - Only shown if there's a mismatch */}
-      {cashTotalMatches === false && totalEnvelopeAndLooseCash > 0 && (
+      {cashTotalMatches === false && calculatedTotalCash > 0 && (
         <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <span className="text-red-600 text-xl">⚠️</span>
             <div className="flex-1">
               <h4 className="text-sm font-bold text-red-900 mb-2">Cash Total Discrepancy Detected</h4>
               <div className="space-y-1 text-sm text-red-800">
-                <p>Envelope + loose cash total: <span className="font-semibold">${totalEnvelopeAndLooseCash.toFixed(2)}</span></p>
+                <p>Missions envelopes: <span className="font-semibold">${missionsEnvelopes.toFixed(2)}</span></p>
+                <p>Missions loose cash: <span className="font-semibold">${missionsLooseCashInput.toFixed(2)}</span></p>
+                <p>Missions cash total (envelopes + loose): <span className="font-semibold">${missionsCashTotal.toFixed(2)}</span></p>
+                <p>General envelopes: <span className="font-semibold">${generalFundEnvelopes.toFixed(2)}</span></p>
+                <p>General loose cash: <span className="font-semibold">${generalFundLooseCash.toFixed(2)}</span></p>
+                <p className="mt-2">Calculated total: <span className="font-semibold">${calculatedTotalCash.toFixed(2)}</span></p>
                 <p>Counted cash total: <span className="font-semibold">${totalCash.toFixed(2)}</span></p>
-                <p className="text-xs mt-2">Please verify your envelope and loose cash amounts match the counted cash total.</p>
+                <p className="text-xs mt-2">Please verify your amounts match the counted cash total.</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Deposit Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">📊 Deposit Summary</h3>
-        
-        <div className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-700">Total Checks:</span>
-            <span className="text-lg font-semibold text-gray-900">${totalChecks.toFixed(2)}</span>
-          </div>
-          
-          <div className="flex justify-between items-center py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-700">Total Envelopes:</span>
-            <span className="text-lg font-semibold text-gray-900">
-              ${totalEnvelopes.toFixed(2)}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-700">Loose Cash:</span>
-            <span className="text-lg font-semibold text-gray-900">
-              ${looseCashAmount.toFixed(2)}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-700">Less: Missions:</span>
-            <span className="text-lg font-semibold text-red-600">
-              -${missionsTotal.toFixed(2)}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-700">Less: Designated:</span>
-            <span className="text-lg font-semibold text-red-600">
-              -${designatedTotal.toFixed(2)}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center py-3 bg-green-100 px-3 rounded-lg">
-            <span className="text-base font-bold text-gray-900">General Fund Deposit:</span>
-            <span className="text-2xl font-bold text-green-700">
-              ${generalFundDeposit.toFixed(2)}
-            </span>
-          </div>
-          
-          {missionsTotal > 0 && (
-            <div className="flex justify-between items-center py-3 bg-blue-100 px-3 rounded-lg">
-              <span className="text-base font-bold text-gray-900">Missions Deposit:</span>
-              <span className="text-2xl font-bold text-blue-700">
-                ${missionsTotal.toFixed(2)}
-              </span>
-            </div>
-          )}
-          
-          {designatedTotal > 0 && (
-            <div className="flex justify-between items-center py-3 bg-purple-100 px-3 rounded-lg">
-              <span className="text-base font-bold text-gray-900">Designated Deposit:</span>
-              <span className="text-2xl font-bold text-purple-700">
-                ${designatedTotal.toFixed(2)}
-              </span>
-            </div>
-          )}
-          
-          <div className="flex justify-between items-center py-4 bg-gradient-to-r from-yellow-100 to-yellow-200 px-4 rounded-lg border-2 border-yellow-400 mt-4">
-            <span className="text-lg font-bold text-gray-900">FINAL TOTAL DEPOSIT:</span>
-            <span className="text-3xl font-bold text-yellow-900">
-              ${finalTotalDeposit.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* Account Allocations */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">💰 Account Allocations</h3>
+      {/* Section: Account Distribution */}
+      <div className="border-t-2 border-gray-300 pt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">🏦 Account Distribution</h2>
+        
+        {/* Account Allocations */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Account Allocations</h3>
           <button
             type="button"
             onClick={addAccountAllocation}
@@ -1722,6 +2056,99 @@ export default function WeeklyDepositForm({
             <p className="text-xs text-green-600 mt-1">
               ✓ Allocations match deposit total
             </p>
+          )}
+        </div>
+        </div>
+      </div>
+
+      {/* Deposit Summary - At the bottom */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">📊 Deposit Summary</h3>
+        
+        <div className="space-y-3">
+          <div className="flex justify-between items-center py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-700">Total Checks:</span>
+            <span className="text-lg font-semibold text-gray-900">${totalChecks.toFixed(2)}</span>
+          </div>
+          
+          <div className="flex justify-between items-center py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-700">Total Envelopes:</span>
+            <span className="text-lg font-semibold text-gray-900">
+              ${totalEnvelopes.toFixed(2)}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-700">Loose Cash:</span>
+            <span className="text-lg font-semibold text-gray-900">
+              ${looseCashAmount.toFixed(2)}
+            </span>
+          </div>
+          
+          {missionsTotal > 0 && (
+            <div className="flex justify-between items-center py-2 border-b border-gray-300">
+              <span className="text-sm font-medium text-gray-700">Less: Missions:</span>
+              <span className="text-lg font-semibold text-red-600">
+                -${missionsTotal.toFixed(2)}
+              </span>
+            </div>
+          )}
+          
+          {designatedTotal > 0 && (
+            <div className="flex justify-between items-center py-2 border-b border-gray-300">
+              <span className="text-sm font-medium text-gray-700">Less: Designated:</span>
+              <span className="text-lg font-semibold text-red-600">
+                -${designatedTotal.toFixed(2)}
+              </span>
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center py-3 bg-green-100 px-3 rounded-lg">
+            <span className="text-base font-bold text-gray-900">General Fund Deposit:</span>
+            <span className="text-2xl font-bold text-green-700">
+              ${generalFundDeposit.toFixed(2)}
+            </span>
+          </div>
+          
+          {missionsTotal > 0 && (
+            <div className="flex justify-between items-center py-3 bg-blue-100 px-3 rounded-lg">
+              <span className="text-base font-bold text-gray-900">Missions Deposit:</span>
+              <span className="text-2xl font-bold text-blue-700">
+                ${missionsTotal.toFixed(2)}
+              </span>
+            </div>
+          )}
+          
+          {designatedTotal > 0 && (
+            <div className="flex justify-between items-center py-3 bg-purple-100 px-3 rounded-lg">
+              <span className="text-base font-bold text-gray-900">Designated Deposit:</span>
+              <span className="text-2xl font-bold text-purple-700">
+                ${designatedTotal.toFixed(2)}
+              </span>
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center py-4 bg-gradient-to-r from-yellow-100 to-yellow-200 px-4 rounded-lg border-2 border-yellow-400 mt-4">
+            <span className="text-lg font-bold text-gray-900">FINAL TOTAL DEPOSIT:</span>
+            <span className="text-3xl font-bold text-yellow-900">
+              ${finalTotalDeposit.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Validation Status */}
+          {accountAllocationsMatch === false && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">
+                ⚠️ Account allocations (${totalAccountAllocations.toFixed(2)}) must equal final deposit (${finalTotalDeposit.toFixed(2)})
+              </p>
+            </div>
+          )}
+          {accountAllocationsMatch === true && (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-800">
+                ✓ Account allocations match deposit total
+              </p>
+            </div>
           )}
         </div>
       </div>

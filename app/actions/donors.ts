@@ -147,7 +147,7 @@ export async function fetchDonorStatement(
     const startDate = `${year}-01-01`
     const endDate = `${year}-12-31`
 
-    // Fetch all journal entries for this donor in the year
+    // Fetch all journal entries for this donor in the year (direct donor_id on journal entry)
     const { data: journalEntries, error: entriesError } = await (supabase as any)
       .from('journal_entries')
       .select('id, entry_date, description, reference_number, is_in_kind')
@@ -162,16 +162,62 @@ export async function fetchDonorStatement(
       return { success: false, error: 'Failed to fetch contributions' }
     }
 
+    // Also fetch ledger lines with donor_id set (for batch transactions like online donations and consolidated weekly giving)
+    // This query is optional - if donor_id column doesn't exist, we'll just use journal_entries
+    let donorLedgerLines: any[] = []
+    try {
+      const { data, error: ledgerError } = await (supabase as any)
+        .from('ledger_lines')
+        .select(`
+          id,
+          credit,
+          memo,
+          journal_entry_id,
+          journal_entries!inner (
+            id,
+            entry_date,
+            description,
+            reference_number,
+            is_in_kind,
+            is_voided
+          ),
+          funds (name),
+          chart_of_accounts (account_type)
+        `)
+        .eq('donor_id', donorId)
+        .gte('journal_entries.entry_date', startDate)
+        .lte('journal_entries.entry_date', endDate)
+        .eq('journal_entries.is_voided', false)
+
+      if (ledgerError) {
+        // If the error is about missing column, just log and continue
+        // Otherwise, log the error but don't fail the whole query
+        console.warn('Ledger lines query warning (may be missing donor_id column):', ledgerError.message)
+        donorLedgerLines = []
+      } else {
+        donorLedgerLines = data || []
+      }
+    } catch (error) {
+      // If query fails completely (e.g., column doesn't exist), just continue without it
+      console.warn('Could not query ledger_lines with donor_id, continuing with journal_entries only:', error)
+      donorLedgerLines = []
+    }
+
     // For each journal entry, get the contribution amount and fund
     const contributions: DonorContribution[] = []
     let totalAmount = 0
+    const processedEntryIds = new Set<string>()
 
+    // Process journal entries with direct donor_id
     for (const entry of journalEntries || []) {
+      processedEntryIds.add(entry.id)
+      
       // Get ledger lines for this entry (looking for income/credit lines)
       const { data: ledgerLines } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           credit,
+          memo,
           funds (name),
           chart_of_accounts (account_type)
         `)
@@ -180,6 +226,7 @@ export async function fetchDonorStatement(
       // Sum up the credits to income accounts (this is the contribution amount)
       let entryAmount = 0
       let fundName = ''
+      let checkNumber: string | null = entry.reference_number
 
       for (const line of ledgerLines || []) {
         const account = line.chart_of_accounts as any
@@ -189,6 +236,16 @@ export async function fetchDonorStatement(
           entryAmount += line.credit
           if (fund?.name && !fundName) {
             fundName = fund.name
+          }
+          // Extract check number from memo if present (format: "Check #123" or "Check #123 - Missions Giving")
+          if (!checkNumber && line.memo) {
+            const memoStr = String(line.memo)
+            if (memoStr.includes('Check #')) {
+              const match = memoStr.match(/Check #(\d+)/)
+              if (match && match[1]) {
+                checkNumber = match[1]
+              }
+            }
           }
         }
       }
@@ -200,12 +257,99 @@ export async function fetchDonorStatement(
           description: entry.description,
           amount: entryAmount,
           fund_name: fundName,
-          reference_number: entry.reference_number,
+          reference_number: checkNumber,
           is_in_kind: entry.is_in_kind || false,
         })
         totalAmount += entryAmount
       }
     }
+
+    // Process ledger lines with donor_id (for batch transactions like online donations and consolidated weekly giving)
+    // Group by journal_entry_id to avoid duplicates
+    const ledgerLineEntries = new Map<string, {
+      journal_entry_id: string
+      entry_date: string
+      description: string
+      reference_number: string | null
+      is_in_kind: boolean
+      lines: Array<{ credit: number; fund_name: string; memo?: string | null }>
+    }>()
+
+    for (const line of donorLedgerLines) {
+      const journalEntry = line.journal_entries as any
+      const account = line.chart_of_accounts as any
+      const fund = line.funds as any
+
+      if (!journalEntry || processedEntryIds.has(journalEntry.id)) {
+        continue // Skip if already processed via journal entry query
+      }
+
+      // Only process income credit lines
+      if (account?.account_type === 'Income' && line.credit > 0) {
+        if (!ledgerLineEntries.has(journalEntry.id)) {
+          ledgerLineEntries.set(journalEntry.id, {
+            journal_entry_id: journalEntry.id,
+            entry_date: journalEntry.entry_date,
+            description: journalEntry.description,
+            reference_number: journalEntry.reference_number,
+            is_in_kind: journalEntry.is_in_kind || false,
+            lines: [],
+          })
+        }
+
+        const entry = ledgerLineEntries.get(journalEntry.id)!
+        // Store memo for check number extraction - ensure we capture the memo field
+        const memoValue = line.memo !== undefined && line.memo !== null ? String(line.memo) : null
+        entry.lines.push({
+          credit: line.credit,
+          fund_name: fund?.name || '',
+          memo: memoValue,
+        })
+      }
+    }
+
+    // Add contributions from ledger lines
+    for (const [entryId, entry] of ledgerLineEntries.entries()) {
+      const entryAmount = entry.lines.reduce((sum, line) => sum + line.credit, 0)
+      const fundName = entry.lines.find(line => line.fund_name)?.fund_name || ''
+      
+      // Extract check number from memo if present (format: "Check #123" or "Check #123 - Missions Giving")
+      let checkNumber: string | null = entry.reference_number
+      // Always check memo fields for check numbers, even if reference_number is set
+      // This ensures we get check numbers from weekly deposits where reference_number is null
+      for (const line of entry.lines) {
+        if (line.memo) {
+          const memoStr = String(line.memo)
+          if (memoStr.includes('Check #')) {
+            const match = memoStr.match(/Check #(\d+)/)
+            if (match && match[1]) {
+              checkNumber = match[1]
+              break // Use first check number found
+            }
+          }
+        }
+      }
+
+      if (entryAmount > 0) {
+        contributions.push({
+          journal_entry_id: entry.journal_entry_id,
+          entry_date: entry.entry_date,
+          description: entry.description,
+          amount: entryAmount,
+          fund_name: fundName,
+          reference_number: checkNumber,
+          is_in_kind: entry.is_in_kind,
+        })
+        totalAmount += entryAmount
+      }
+    }
+
+    // Sort contributions by date
+    contributions.sort((a, b) => {
+      const dateA = new Date(a.entry_date).getTime()
+      const dateB = new Date(b.entry_date).getTime()
+      return dateA - dateB
+    })
 
     return {
       success: true,

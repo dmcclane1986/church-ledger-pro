@@ -63,47 +63,49 @@ export function generateDepositReceiptPDF(data: DepositData) {
 
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
-  let yPosition = margin
+  const topMargin = 10 // Narrower top margin
+  let yPosition = topMargin
 
-  // Header with Logo and Church Name
+  // Header with Logo/Church Name on Left, Title/Date/Description on Right
   doc.setFont('times', 'normal')
   const churchName = data.churchName || 'Church Ledger Pro'
+  const headerRightX = pageWidth - margin // Right side of header (aligned to right margin)
 
   try {
     if (data.logoUrl) {
       const logoSize = 20 // 20mm square
       
       // Add logo on the left
-      doc.addImage(data.logoUrl, 'JPEG', margin, yPosition, logoSize, logoSize)
+      doc.addImage(data.logoUrl, 'JPEG', margin, topMargin, logoSize, logoSize)
       
       // Church name next to logo
       const textStartX = margin + logoSize + 5
       doc.setFontSize(16)
       doc.setFont('times', 'bold')
-      doc.text(churchName, textStartX, yPosition + 5)
+      doc.text(churchName, textStartX, topMargin + 5)
       
       // Church address if provided
       if (data.churchAddress) {
         doc.setFontSize(9)
         doc.setFont('times', 'normal')
         const addressLines = data.churchAddress.split('\n')
-        let addressY = yPosition + 11
+        let addressY = topMargin + 11
         addressLines.forEach(line => {
           if (line.trim()) {
             doc.text(line, textStartX, addressY)
             addressY += 4
           }
         })
-        yPosition += Math.max(logoSize, addressY - yPosition) + 5
+        yPosition = Math.max(topMargin + logoSize, addressY)
       } else {
-        yPosition += logoSize + 5
+        yPosition = topMargin + logoSize
       }
     } else {
       // Fallback without logo
       doc.setFontSize(16)
       doc.setFont('times', 'bold')
-      doc.text(churchName, margin, yPosition)
-      yPosition += 7
+      doc.text(churchName, margin, topMargin)
+      yPosition = topMargin + 7
 
       if (data.churchAddress) {
         doc.setFontSize(9)
@@ -116,7 +118,6 @@ export function generateDepositReceiptPDF(data: DepositData) {
           }
         })
       }
-      yPosition += 5
     }
   } catch (error) {
     console.warn('Could not load logo for PDF, using text-only header:', error)
@@ -124,8 +125,8 @@ export function generateDepositReceiptPDF(data: DepositData) {
     // Fallback header
     doc.setFontSize(16)
     doc.setFont('times', 'bold')
-    doc.text(churchName, margin, yPosition)
-    yPosition += 7
+    doc.text(churchName, margin, topMargin)
+    yPosition = topMargin + 7
 
     if (data.churchAddress) {
       doc.setFontSize(9)
@@ -138,38 +139,34 @@ export function generateDepositReceiptPDF(data: DepositData) {
         }
       })
     }
-    yPosition += 5
   }
 
-  // Horizontal line
+  // Title, Date, and Description on the right side of header
+  const headerRightY = topMargin + 5
+  doc.setFontSize(12)
+  doc.setFont('times', 'bold')
+  doc.text('Weekly Deposit Summary', headerRightX, headerRightY, { align: 'right' })
+  
+  doc.setFontSize(9)
+  doc.setFont('times', 'normal')
+  doc.text(`Date: ${formatDate(data.date)}`, headerRightX, headerRightY + 5, { align: 'right' })
+  doc.text(`Description: ${data.description}`, headerRightX, headerRightY + 10, { align: 'right' })
+
+  // Horizontal line - moved up
+  yPosition += 3
   doc.setLineWidth(0.5)
   doc.line(margin, yPosition, pageWidth - margin, yPosition)
-  yPosition += 8
-
-  // Report Title
-  doc.setFontSize(14)
-  doc.setFont('times', 'bold')
-  doc.text('Weekly Deposit Summary', margin, yPosition)
-  yPosition += 6
-  
-  // Date and Description
-  doc.setFontSize(10)
-  doc.setFont('times', 'normal')
-  doc.text(`Date: ${formatDate(data.date)}`, margin, yPosition)
   yPosition += 5
-  doc.text(`Description: ${data.description}`, margin, yPosition)
-  
-  yPosition += 10
 
   // Store the starting Y position for side-by-side layout
   const sectionStartY = yPosition
 
   // LEFT SIDE: Cash Tally Section
-  doc.setFontSize(12)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.text('Cash & Coin Breakdown', 20, yPosition)
   
-  let leftSideY = yPosition + 5
+  let leftSideY = yPosition + 4
 
   // Always show all denominations (even if zero)
   const cashData = [
@@ -195,18 +192,18 @@ export function generateDepositReceiptPDF(data: DepositData) {
     head: [['Denomination', 'Amount']],
     body: cashData,
     theme: 'grid',
-    headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-    styles: { fontSize: 9, cellPadding: 2 },
+    headStyles: { fillColor: [70, 70, 70], fontSize: 9 },
+    styles: { fontSize: 8, cellPadding: 1.5 },
     columnStyles: {
       0: { cellWidth: 50 },
       1: { cellWidth: 30, halign: 'right' },
     },
     margin: { left: 20, right: 110 },
   })
-  leftSideY = (doc as any).lastAutoTable.finalY + 3
+  leftSideY = (doc as any).lastAutoTable.finalY + 2
 
   // Cash Total on left side
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.text('Cash Total:', 20, leftSideY)
   doc.text(formatCurrency(data.totalCash), 100, leftSideY, { align: 'right' })
@@ -216,10 +213,10 @@ export function generateDepositReceiptPDF(data: DepositData) {
   
   // Method of Collection
   if (data.totalEnvelopes > 0 || data.looseCash > 0 || data.totalChecks > 0) {
-    doc.setFontSize(12)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.text('Method of Collection', 110, rightSideY)
-    rightSideY += 5
+    rightSideY += 4
 
     const methodData = []
     if (data.totalEnvelopes > 0) {
@@ -238,25 +235,25 @@ export function generateDepositReceiptPDF(data: DepositData) {
         head: [['Description', 'Amount']],
         body: methodData,
         theme: 'grid',
-        headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [70, 70, 70], fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
           0: { cellWidth: 50 },
           1: { cellWidth: 30, halign: 'right' },
         },
         margin: { left: 110, right: 20 },
       })
-      rightSideY = (doc as any).lastAutoTable.finalY + 10
+      rightSideY = (doc as any).lastAutoTable.finalY + 6
     }
   }
   
   // Check Listing
   
   if (data.checks.length > 0) {
-    doc.setFontSize(12)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.text('Check Listing', 110, rightSideY)
-    rightSideY += 5
+    rightSideY += 4
 
     const checkData = data.checks.map((check) => [
       check.referenceNumber,
@@ -268,30 +265,30 @@ export function generateDepositReceiptPDF(data: DepositData) {
       head: [['Check Number', 'Amount']],
       body: checkData,
       theme: 'grid',
-      headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [70, 70, 70], fontSize: 9 },
+      styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
         0: { cellWidth: 50 },
         1: { cellWidth: 30, halign: 'right' },
       },
       margin: { left: 110, right: 20 },
     })
-    rightSideY = (doc as any).lastAutoTable.finalY + 3
+    rightSideY = (doc as any).lastAutoTable.finalY + 2
 
     // Check Total on right side
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('Check Total:', 110, rightSideY)
     doc.text(formatCurrency(data.totalChecks), 190, rightSideY, { align: 'right' })
-    rightSideY += 10
+    rightSideY += 8
   }
 
   // Deposit Information (right side, under checks)
   if (data.fundAllocations.length > 0) {
-    doc.setFontSize(12)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.text('Deposit Information', 110, rightSideY)
-    rightSideY += 5
+    rightSideY += 4
 
     // Calculate total deposit for percentage calculations
     const totalDeposit = data.totalCash + data.totalChecks
@@ -321,8 +318,8 @@ export function generateDepositReceiptPDF(data: DepositData) {
       head: [['Fund', 'Cash', 'Check', 'Total']],
       body: fundData,
       theme: 'grid',
-      headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [70, 70, 70], fontSize: 9 },
+      styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
         0: { cellWidth: 35, halign: 'left' },
         1: { cellWidth: 18, halign: 'right' },
@@ -331,12 +328,12 @@ export function generateDepositReceiptPDF(data: DepositData) {
       },
       margin: { left: 110, right: 20 },
     })
-    rightSideY = (doc as any).lastAutoTable.finalY + 10
+    rightSideY = (doc as any).lastAutoTable.finalY + 6
   }
 
   // Account Allocations Section (if multiple accounts)
   if (data.accountAllocations && data.accountAllocations.length > 1) {
-    yPosition = Math.max(leftSideY, rightSideY) + 10
+    yPosition = Math.max(leftSideY, rightSideY) + 6
     
     // Check if we need a new page
     if (yPosition > 200) {
@@ -344,10 +341,10 @@ export function generateDepositReceiptPDF(data: DepositData) {
       yPosition = margin
     }
 
-    doc.setFontSize(12)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.text('Account Allocations', margin, yPosition)
-    yPosition += 5
+    yPosition += 4
 
     const accountData = data.accountAllocations.map((alloc) => [
       `${alloc.accountNumber} - ${alloc.accountName}`,
@@ -359,27 +356,27 @@ export function generateDepositReceiptPDF(data: DepositData) {
       head: [['Account', 'Amount']],
       body: accountData,
       theme: 'grid',
-      headStyles: { fillColor: [70, 70, 70], fontSize: 10 },
-      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [70, 70, 70], fontSize: 9 },
+      styles: { fontSize: 8, cellPadding: 1.5 },
       columnStyles: {
         0: { cellWidth: 120 },
         1: { cellWidth: 50, halign: 'right' },
       },
       margin: { left: margin, right: margin },
     })
-    yPosition = (doc as any).lastAutoTable.finalY + 5
+    yPosition = (doc as any).lastAutoTable.finalY + 3
 
     // Account Total
     const accountTotal = data.accountAllocations.reduce((sum, alloc) => sum + alloc.amount, 0)
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('Total Allocated:', margin, yPosition)
     doc.text(formatCurrency(accountTotal), 185, yPosition, { align: 'right' })
-    yPosition += 10
+    yPosition += 6
   }
 
   // Move to the lower of the two sections, plus extra spacing
-  yPosition = Math.max(yPosition, Math.max(leftSideY, rightSideY) + 10)
+  yPosition = Math.max(yPosition, Math.max(leftSideY, rightSideY) + 6)
 
   // Check if content would overflow onto signature area
   // If so, add a new page

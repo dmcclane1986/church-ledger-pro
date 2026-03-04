@@ -1556,7 +1556,7 @@ export async function getAnnualGiving(
     const startDate = `${year}-01-01`
     const endDate = `${year}-12-31`
 
-    // Fetch all journal entries for this donor in the year
+    // Fetch all journal entries for this donor in the year (direct donor_id on journal entry)
     const { data: journalEntries, error: entriesError } = await (supabase as any)
       .from('journal_entries')
       .select('id, entry_date, description, reference_number, is_in_kind')
@@ -1571,16 +1571,67 @@ export async function getAnnualGiving(
       return { success: false, error: 'Failed to fetch giving history' }
     }
 
+    // Also fetch ledger lines with donor_id set (for batch transactions like online donations and consolidated weekly giving)
+    // This query is optional - if donor_id column doesn't exist, we'll just use journal_entries
+    let donorLedgerLines: any[] = []
+    try {
+      const { data, error: ledgerError } = await (supabase as any)
+        .from('ledger_lines')
+        .select(`
+          id,
+          credit,
+          debit,
+          memo,
+          journal_entry_id,
+          journal_entries!inner (
+            id,
+            entry_date,
+            description,
+            reference_number,
+            is_in_kind,
+            is_voided
+          ),
+          funds (name),
+          chart_of_accounts (
+            account_number,
+            name,
+            account_type
+          )
+        `)
+        .eq('donor_id', donorId)
+        .gte('journal_entries.entry_date', startDate)
+        .lte('journal_entries.entry_date', endDate)
+        .eq('journal_entries.is_voided', false)
+
+      if (ledgerError) {
+        // If the error is about missing column, just log and continue
+        // Otherwise, log the error but don't fail the whole query
+        console.warn('Ledger lines query warning (may be missing donor_id column):', ledgerError.message)
+        donorLedgerLines = []
+      } else {
+        donorLedgerLines = data || []
+      }
+    } catch (error) {
+      // If query fails completely (e.g., column doesn't exist), just continue without it
+      console.warn('Could not query ledger_lines with donor_id, continuing with journal_entries only:', error)
+      donorLedgerLines = []
+    }
+
     // For each journal entry, get the income account ledger lines
     const gifts: AnnualGivingGift[] = []
+    const processedEntryIds = new Set<string>()
 
+    // Process journal entries with direct donor_id
     for (const entry of journalEntries || []) {
+      processedEntryIds.add(entry.id)
+      
       // Get ledger lines for this entry that are Income accounts
       const { data: ledgerLines } = await (supabase as any)
         .from('ledger_lines')
         .select(`
           credit,
           debit,
+          memo,
           funds (name),
           chart_of_accounts (
             account_number,
@@ -1597,19 +1648,75 @@ export async function getAnnualGiving(
 
         // Only include Income accounts (4000s)
         if (account?.account_type === 'Income' && line.credit > 0) {
+          // Extract check number from memo if present (format: "Check #123" or "Check #123 - Missions Giving")
+          let checkNumber: string | null = entry.reference_number
+          if (!checkNumber && line.memo) {
+            const memoStr = String(line.memo)
+            if (memoStr.includes('Check #')) {
+              const match = memoStr.match(/Check #(\d+)/)
+              if (match && match[1]) {
+                checkNumber = match[1]
+              }
+            }
+          }
+          
           gifts.push({
             entry_date: entry.entry_date,
             description: entry.description,
             account_name: account.name,
             account_number: account.account_number,
             fund_name: fund?.name || 'General',
-            reference_number: entry.reference_number,
+            reference_number: checkNumber,
             amount: line.credit,
             is_in_kind: entry.is_in_kind || false,
           })
         }
       }
     }
+
+    // Process ledger lines with donor_id (for batch transactions like online donations and consolidated weekly giving)
+    for (const line of donorLedgerLines) {
+      const journalEntry = line.journal_entries as any
+      const account = line.chart_of_accounts as any
+      const fund = line.funds as any
+
+      if (!journalEntry || processedEntryIds.has(journalEntry.id)) {
+        continue // Skip if already processed via journal entry query
+      }
+
+      // Only include Income accounts (4000s)
+      if (account?.account_type === 'Income' && line.credit > 0) {
+        // Extract check number from memo if present (format: "Check #123" or "Check #123 - Missions Giving")
+        let checkNumber: string | null = journalEntry.reference_number
+        if (!checkNumber && line.memo) {
+          const memoStr = String(line.memo)
+          if (memoStr.includes('Check #')) {
+            const match = memoStr.match(/Check #(\d+)/)
+            if (match && match[1]) {
+              checkNumber = match[1]
+            }
+          }
+        }
+        
+        gifts.push({
+          entry_date: journalEntry.entry_date,
+          description: journalEntry.description,
+          account_name: account.name,
+          account_number: account.account_number,
+          fund_name: fund?.name || 'General',
+          reference_number: checkNumber,
+          amount: line.credit,
+          is_in_kind: journalEntry.is_in_kind || false,
+        })
+      }
+    }
+
+    // Sort gifts by date
+    gifts.sort((a, b) => {
+      const dateA = new Date(a.entry_date).getTime()
+      const dateB = new Date(b.entry_date).getTime()
+      return dateA - dateB
+    })
 
     // Separate cash and in-kind gifts
     const cash_gifts = gifts.filter(g => !g.is_in_kind)

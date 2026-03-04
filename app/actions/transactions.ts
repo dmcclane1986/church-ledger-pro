@@ -385,6 +385,7 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
       debit: number
       credit: number
       memo: string | null
+      donor_id?: string | null
     }> = []
 
     // Find the primary fund (use first donation's fund as reference for checking account)
@@ -398,6 +399,7 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
       debit: input.netDeposit,
       credit: 0,
       memo: 'Online donation deposit (net)',
+      donor_id: null, // No donor on asset/debit lines
     })
 
     // Debit: Bank/Merchant Fees expense account for fees (if any)
@@ -409,10 +411,11 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
         debit: input.processingFees,
         credit: 0,
         memo: 'Online donation processing fees',
+        donor_id: null, // No donor on expense/debit lines
       })
     }
 
-    // Credit: Income accounts for each donation
+    // Credit: Income accounts for each donation (with donor_id)
     for (const donation of input.donations) {
       ledgerLines.push({
         journal_entry_id: journalEntry.id,
@@ -421,6 +424,7 @@ export async function recordBatchOnlineDonation(input: BatchOnlineDonationInput)
         debit: 0,
         credit: donation.amount,
         memo: 'Online donation',
+        donor_id: donation.donorId, // Set donor_id on income credit lines
       })
     }
 
@@ -1045,10 +1049,16 @@ interface WeeklyDepositInput {
     referenceNumber: string
     amount: number
     donorId?: string
+    fundType?: 'general' | 'missions' | 'designated'
+    fundId?: string
+    accountId?: string
   }>
   envelopes: Array<{
     donorId?: string
     amount: number
+    fundType?: 'general' | 'missions' | 'designated'
+    fundId?: string
+    accountId?: string
   }>
 }
 
@@ -1089,302 +1099,528 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
       return { success: false, error: 'At least one account allocation is required' }
     }
 
-    // Get primary account (first allocation) for individual check/envelope entries
-    const primaryAccountId = input.accountAllocations[0].accountId
+    // Step 1: Create ONE journal entry for the entire weekly deposit
+    const { data: journalEntry, error: journalError } = await (supabase as any)
+      .from('journal_entries')
+      .insert({
+        entry_date: input.date,
+        description: input.description,
+        reference_number: null,
+        // Don't set donor_id at journal entry level since we have multiple donors
+      })
+      .select()
+      .single()
 
-    const createdJournalEntryIds: string[] = []
+    if (journalError) {
+      console.error('Journal entry error:', journalError)
+      return { success: false, error: 'Failed to create journal entry' }
+    }
 
-    // Step 1: Create individual journal entries for each check with a donor_id
+    // Step 2: Fetch account details to identify Missions Checking vs Operating Checking
+    const accountIds = input.accountAllocations.map(alloc => alloc.accountId)
+    const { data: accounts, error: accountsError } = await (supabase as any)
+      .from('chart_of_accounts')
+      .select('id, account_number, name')
+      .in('id', accountIds)
+
+    if (accountsError) {
+      console.error('Error fetching accounts:', accountsError)
+      return { success: false, error: 'Failed to fetch account details' }
+    }
+
+    // Find Missions Checking account (account_number 1150 or name contains "Missions")
+    const missionsCheckingAccount = accounts?.find((acc: any) => 
+      acc.account_number === 1150 || acc.name.toLowerCase().includes('missions checking')
+    )
+    
+    // Find Operating Checking account (account_number 1100 or name contains "Operating")
+    const operatingCheckingAccount = accounts?.find((acc: any) => 
+      acc.account_number === 1100 || acc.name.toLowerCase().includes('operating checking')
+    )
+
+    // Step 3: Build all ledger lines for this single journal entry
+    const ledgerLines: Array<{
+      journal_entry_id: string
+      account_id: string
+      fund_id: string
+      debit: number
+      credit: number
+      memo: string | null
+      donor_id?: string | null
+    }> = []
+
+    // Calculate allocation proportions for remaining cash (only used for loose cash)
+    const allocationProportions = input.accountAllocations.map(alloc => ({
+      accountId: alloc.accountId,
+      proportion: alloc.amount / totalDeposit
+    }))
+
+    // Process checks - create ledger lines for each check
+    // Route to specific account based on fund type (not split proportionally)
     for (const check of input.checks) {
-      if (check.donorId && check.amount > 0) {
-        const { data: checkEntry, error: checkError } = await (supabase as any)
-          .from('journal_entries')
-          .insert({
-            entry_date: input.date,
-            description: `Check #${check.referenceNumber}`,
-            reference_number: check.referenceNumber,
-            donor_id: check.donorId,
+      if (check.amount > 0) {
+        // Determine fund, income account, and checking account based on check type
+        let checkFundId: string
+        let checkIncomeAccountId: string
+        let checkCheckingAccountId: string | null = null
+        let checkMemo: string
+        
+        if (check.fundType === 'missions' && input.missionsFundId) {
+          checkFundId = input.missionsFundId
+          checkIncomeAccountId = input.generalIncomeAccountId // Missions uses same income account
+          // Find missions checking account from account allocations
+          const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
+            const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
+            return account && (
+              account.account_number === 1150 || 
+              account.name.toLowerCase().includes('missions')
+            )
           })
-          .select()
-          .single()
-
-        if (checkError) {
-          console.error('Check journal entry error:', checkError)
-          // Rollback: delete all created entries
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return { success: false, error: 'Failed to create check entry' }
+          checkCheckingAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || null
+          checkMemo = `Check #${check.referenceNumber} - Missions Giving`
+        } else if (check.fundType === 'designated' && check.fundId && check.accountId) {
+          checkFundId = check.fundId
+          checkIncomeAccountId = check.accountId // Designated uses the selected account
+          // For designated, use first account allocation (or could be more specific)
+          checkCheckingAccountId = input.accountAllocations[0]?.accountId || null
+          checkMemo = `Check #${check.referenceNumber} - Designated Giving`
+        } else {
+          // Default to general fund - route to Operating Checking
+          checkFundId = input.generalFundId
+          checkIncomeAccountId = input.generalIncomeAccountId
+          checkCheckingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId || null
+          checkMemo = `Check #${check.referenceNumber} - Tithes & Offerings`
         }
-
-        createdJournalEntryIds.push(checkEntry.id)
-
-        // Create ledger lines for this check (Debit: Checking, Credit: Income)
-        // Use primary account for individual check entries
-        const checkLedgerLines = [
-          {
-            journal_entry_id: checkEntry.id,
-            account_id: primaryAccountId,
-            fund_id: input.generalFundId,
+        
+        // Ensure we have a checking account ID - use first account allocation as fallback
+        if (!checkCheckingAccountId) {
+          checkCheckingAccountId = input.accountAllocations[0]?.accountId || null
+        }
+        
+        // Debit the specific checking account (full amount, not split)
+        if (checkCheckingAccountId) {
+          ledgerLines.push({
+            journal_entry_id: journalEntry.id,
+            account_id: checkCheckingAccountId,
+            fund_id: checkFundId,
             debit: check.amount,
             credit: 0,
             memo: `Check #${check.referenceNumber}`,
-          },
-          {
-            journal_entry_id: checkEntry.id,
-            account_id: input.generalIncomeAccountId,
-            fund_id: input.generalFundId,
+            donor_id: null, // No donor on asset/debit lines
+          })
+          
+          // Credit income account for this check (with donor_id if provided)
+          ledgerLines.push({
+            journal_entry_id: journalEntry.id,
+            account_id: checkIncomeAccountId,
+            fund_id: checkFundId,
             debit: 0,
             credit: check.amount,
-            memo: 'Tithes & Offerings',
-          },
-        ]
-
-        const { error: checkLedgerError } = await (supabase as any)
-          .from('ledger_lines')
-          .insert(checkLedgerLines)
-
-        if (checkLedgerError) {
-          console.error('Check ledger lines error:', checkLedgerError)
-          // Rollback all
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return { success: false, error: 'Failed to create check ledger entries' }
+            memo: checkMemo,
+            donor_id: check.donorId || null, // Set donor_id on income credit line
+          })
+        } else {
+          // If we still don't have a checking account, skip this check and log an error
+          console.error(`No checking account found for check #${check.referenceNumber}, skipping`)
         }
       }
     }
 
-    // Step 2: Create individual journal entries for each envelope with a donor_id
+    // Process envelopes - create ledger lines for each envelope
+    // Route to specific account based on fund type (not split proportionally)
     for (const envelope of input.envelopes) {
-      if (envelope.donorId && envelope.amount > 0) {
-        const { data: envelopeEntry, error: envelopeError } = await (supabase as any)
-          .from('journal_entries')
-          .insert({
-            entry_date: input.date,
-            description: `Envelope donation`,
-            reference_number: null,
-            donor_id: envelope.donorId,
+      if (envelope.amount > 0) {
+        // Determine fund, income account, and checking account based on envelope type
+        let envelopeFundId: string
+        let envelopeIncomeAccountId: string
+        let envelopeCheckingAccountId: string | null = null
+        let envelopeMemo: string
+        
+        if (envelope.fundType === 'missions' && input.missionsFundId) {
+          envelopeFundId = input.missionsFundId
+          envelopeIncomeAccountId = input.generalIncomeAccountId
+          // Find missions checking account from account allocations
+          const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
+            const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
+            return account && (
+              account.account_number === 1150 || 
+              account.name.toLowerCase().includes('missions')
+            )
           })
-          .select()
-          .single()
-
-        if (envelopeError) {
-          console.error('Envelope journal entry error:', envelopeError)
-          // Rollback all
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return { success: false, error: 'Failed to create envelope entry' }
+          envelopeCheckingAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || null
+          envelopeMemo = 'Envelope donation - Missions Giving'
+        } else if (envelope.fundType === 'designated' && envelope.fundId && envelope.accountId) {
+          envelopeFundId = envelope.fundId
+          envelopeIncomeAccountId = envelope.accountId
+          envelopeCheckingAccountId = input.accountAllocations[0]?.accountId || null
+          envelopeMemo = 'Envelope donation - Designated Giving'
+        } else {
+          // Default to general fund - route to Operating Checking
+          envelopeFundId = input.generalFundId
+          envelopeIncomeAccountId = input.generalIncomeAccountId
+          envelopeCheckingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId || null
+          envelopeMemo = 'Envelope donation - Tithes & Offerings'
         }
-
-        createdJournalEntryIds.push(envelopeEntry.id)
-
-        // Create ledger lines for this envelope (Debit: Checking, Credit: Income)
-        // Use primary account for individual envelope entries
-        const envelopeLedgerLines = [
-          {
-            journal_entry_id: envelopeEntry.id,
-            account_id: primaryAccountId,
-            fund_id: input.generalFundId,
+        
+        // Ensure we have a checking account ID - use first account allocation as fallback
+        if (!envelopeCheckingAccountId) {
+          envelopeCheckingAccountId = input.accountAllocations[0]?.accountId || null
+        }
+        
+        // Debit the specific checking account (full amount, not split)
+        if (envelopeCheckingAccountId) {
+          ledgerLines.push({
+            journal_entry_id: journalEntry.id,
+            account_id: envelopeCheckingAccountId,
+            fund_id: envelopeFundId,
             debit: envelope.amount,
             credit: 0,
             memo: 'Envelope donation',
-          },
-          {
-            journal_entry_id: envelopeEntry.id,
-            account_id: input.generalIncomeAccountId,
-            fund_id: input.generalFundId,
+            donor_id: null, // No donor on asset/debit lines
+          })
+          
+          // Credit income account for this envelope (with donor_id if provided)
+          ledgerLines.push({
+            journal_entry_id: journalEntry.id,
+            account_id: envelopeIncomeAccountId,
+            fund_id: envelopeFundId,
             debit: 0,
             credit: envelope.amount,
-            memo: 'Tithes & Offerings',
-          },
-        ]
-
-        const { error: envelopeLedgerError } = await (supabase as any)
-          .from('ledger_lines')
-          .insert(envelopeLedgerLines)
-
-        if (envelopeLedgerError) {
-          console.error('Envelope ledger lines error:', envelopeLedgerError)
-          // Rollback all
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return { success: false, error: 'Failed to create envelope ledger entries' }
+            memo: envelopeMemo,
+            donor_id: envelope.donorId || null, // Set donor_id on income credit line
+          })
+        } else {
+          // If we still don't have a checking account, skip this envelope and log an error
+          console.error(`No checking account found for envelope donation, skipping`)
         }
       }
     }
 
-    // Step 3: Create journal entry for remaining amounts (general fund, missions, designated, loose cash, checks/envelopes without donors)
-    // Calculate the amount already recorded with individual entries
-    const checksWithDonors = input.checks
-      .filter(c => c.donorId && c.amount > 0)
+    // Calculate amounts already recorded via general fund checks/envelopes
+    const generalFundChecksTotal = input.checks
+      .filter(c => !c.fundType || c.fundType === 'general')
       .reduce((sum, c) => sum + c.amount, 0)
-    const envelopesWithDonors = input.envelopes
-      .filter(e => e.donorId && e.amount > 0)
+    const generalFundEnvelopesTotal = input.envelopes
+      .filter(e => !e.fundType || e.fundType === 'general')
       .reduce((sum, e) => sum + e.amount, 0)
     
-    const remainingGeneralFundAmount = input.generalFundAmount - checksWithDonors - envelopesWithDonors
+    // Calculate general fund cash amount (envelopes + loose cash)
+    // Use the provided cash amount, which should be calculatedGeneralFundCash (envelopes + loose cash)
+    const generalFundCashTotal = input.generalFundCashAmount || 0
+    
+    // Remaining general fund amount is the loose cash (cash total minus envelopes already recorded)
+    // This is the amount that hasn't been recorded yet via envelopes
+    const remainingGeneralFundAmount = Math.max(0, generalFundCashTotal - generalFundEnvelopesTotal)
 
-    // Only create a main entry if there's remaining amount, missions, or designated items
-    if (remainingGeneralFundAmount > 0.01 || (input.missionsAmount && input.missionsAmount > 0) || input.designatedItems.length > 0) {
-      const { data: mainEntry, error: mainError } = await (supabase as any)
-        .from('journal_entries')
-        .insert({
-          entry_date: input.date,
-          description: input.description,
-          reference_number: null,
-        })
-        .select()
-        .single()
+    // Missions fund - calculate missions cash and envelopes
+    // Calculate missions cash amount (missionsAmount includes checks and envelopes, so subtract them)
+    const missionsChecksTotal = input.checks
+      .filter(c => c.fundType === 'missions')
+      .reduce((sum, c) => sum + c.amount, 0)
+    const missionsEnvelopesTotal = input.envelopes
+      .filter(e => e.fundType === 'missions')
+      .reduce((sum, e) => sum + e.amount, 0)
+    const missionsCashAmount = (input.missionsAmount || 0) - missionsChecksTotal - missionsEnvelopesTotal
 
-      if (mainError) {
-        console.error('Main journal entry error:', mainError)
-        // Rollback all
-        for (const id of createdJournalEntryIds) {
-          await supabase.from('journal_entries').delete().eq('id', id)
-        }
-        return { success: false, error: 'Failed to create main journal entry' }
-      }
-
-      createdJournalEntryIds.push(mainEntry.id)
-
-      const ledgerLines: Array<{
-        journal_entry_id: string
-        account_id: string
-        fund_id: string
-        debit: number
-        credit: number
-        memo: string | null
-      }> = []
-
-      // Calculate allocation proportions
-      const allocationProportions = input.accountAllocations.map(alloc => ({
-        accountId: alloc.accountId,
-        proportion: alloc.amount / totalDeposit
-      }))
-
-      // General fund remaining amount (loose cash + untracked items)
-      // Distribute across accounts based on allocations
-      if (remainingGeneralFundAmount > 0.01) {
-        for (const allocProp of allocationProportions) {
-          const allocatedAmount = remainingGeneralFundAmount * allocProp.proportion
-          if (allocatedAmount > 0.01) {
+    // General fund remaining amount (loose cash + untracked items)
+    // Only split across accounts if missions cash > missions envelopes, otherwise all goes to Operating Checking
+    if (remainingGeneralFundAmount > 0.01) {
+      // Check if we should split loose cash (only if missions cash > missions envelopes)
+      const shouldSplitLooseCash = missionsCashAmount > missionsEnvelopesTotal
+      
+      if (shouldSplitLooseCash) {
+        // Calculate missions cash shortfall (how much missions cash is still needed)
+        // missionsCashAmount is already missions loose cash (input.missionsAmount - missionsChecksTotal - missionsEnvelopesTotal)
+        // So missionsCashAmount is the missions loose cash that needs to be allocated
+        // The shortfall is just missionsCashAmount itself (since envelopes are already recorded separately)
+        const missionsCashShortfall = missionsCashAmount
+        
+        // First, allocate loose cash to missions checking up to the shortfall amount
+        const missionsAllocation = Math.min(remainingGeneralFundAmount, missionsCashShortfall)
+        const remainingLooseCash = remainingGeneralFundAmount - missionsAllocation
+        
+        // Route missions allocation to Missions Checking
+        if (missionsAllocation > 0.01 && input.missionsFundId) {
+          // Find missions checking account from account allocations
+          const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
+            const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
+            return account && (
+              account.account_number === 1150 || 
+              account.name.toLowerCase().includes('missions')
+            )
+          })
+          const missionsAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || input.accountAllocations[0]?.accountId
+          
+          if (missionsAccountId) {
             ledgerLines.push({
-              journal_entry_id: mainEntry.id,
-              account_id: allocProp.accountId,
-              fund_id: input.generalFundId,
-              debit: allocatedAmount,
+              journal_entry_id: journalEntry.id,
+              account_id: missionsAccountId,
+              fund_id: input.missionsFundId,
+              debit: missionsAllocation,
               credit: 0,
-              memo: 'Cash received - General Fund',
+              memo: 'Cash received - Missions',
+              donor_id: null,
+            })
+            
+            // Credit missions income account
+            ledgerLines.push({
+              journal_entry_id: journalEntry.id,
+              account_id: input.generalIncomeAccountId,
+              fund_id: input.missionsFundId,
+              debit: 0,
+              credit: missionsAllocation,
+              memo: 'Missions Giving - Cash',
+              donor_id: null,
             })
           }
+        }
+        
+        // Route remaining loose cash to Operating Checking
+        if (remainingLooseCash > 0.01) {
+          const operatingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId
+          if (operatingAccountId) {
+            ledgerLines.push({
+              journal_entry_id: journalEntry.id,
+              account_id: operatingAccountId,
+              fund_id: input.generalFundId,
+              debit: remainingLooseCash,
+              credit: 0,
+              memo: 'Cash received - General Fund',
+              donor_id: null,
+            })
+            
+            // Credit general income account
+            ledgerLines.push({
+              journal_entry_id: journalEntry.id,
+              account_id: input.generalIncomeAccountId,
+              fund_id: input.generalFundId,
+              debit: 0,
+              credit: remainingLooseCash,
+              memo: 'Tithes & Offerings - General',
+              donor_id: null,
+            })
+          }
+        }
+      } else {
+        // All loose cash goes to Operating Checking
+        const operatingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId
+        if (operatingAccountId) {
+          ledgerLines.push({
+            journal_entry_id: journalEntry.id,
+            account_id: operatingAccountId,
+            fund_id: input.generalFundId,
+            debit: remainingGeneralFundAmount,
+            credit: 0,
+            memo: 'Cash received - General Fund',
+            donor_id: null,
+          })
         }
 
         // Credit income account (single entry for total)
         ledgerLines.push({
-          journal_entry_id: mainEntry.id,
+          journal_entry_id: journalEntry.id,
           account_id: input.generalIncomeAccountId,
           fund_id: input.generalFundId,
           debit: 0,
           credit: remainingGeneralFundAmount,
           memo: 'Tithes & Offerings - General',
+          donor_id: null,
+        })
+      }
+    }
+    
+    // Missions fund cash - only record if missions cash > missions envelopes AND loose cash didn't cover it
+    // If missions cash <= missions envelopes, the missions cash is already covered by envelopes
+    // If loose cash covered the shortfall, missions cash is already recorded above
+    // missionsCashAmount is missions loose cash (input.missionsAmount - missionsChecksTotal - missionsEnvelopesTotal)
+    // So if missionsCashAmount > missionsEnvelopesTotal, we need missionsCashAmount - missionsEnvelopesTotal more
+    // But we may have already allocated some loose cash to cover this shortfall
+    // Calculate how much loose cash was allocated to missions (if any) - this was done above in the shouldSplitLooseCash section
+    // missionsCashAmount is the missions loose cash that needs to be allocated
+    // If we allocated loose cash to missions above, we need to subtract that from what we record here
+    let looseCashCoveredMissions = 0
+    if (missionsCashAmount > missionsEnvelopesTotal && remainingGeneralFundAmount > 0.01) {
+      // This matches the calculation above where missionsAllocation = Math.min(remainingGeneralFundAmount, missionsCashAmount)
+      looseCashCoveredMissions = Math.min(remainingGeneralFundAmount, missionsCashAmount)
+    }
+    // remainingMissionsCash should be missionsCashAmount minus what loose cash already covered
+    // This ensures we only record missions cash that wasn't already covered by envelopes or loose cash
+    const remainingMissionsCash = missionsCashAmount - looseCashCoveredMissions
+    
+    if (remainingMissionsCash > 0.01 && input.missionsFundId) {
+      // Route remaining missions cash to Missions Checking (full amount, not split)
+      // Find missions checking account from account allocations
+      const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
+        const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
+        return account && (
+          account.account_number === 1150 || 
+          account.name.toLowerCase().includes('missions')
+        )
+      })
+      const missionsAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || input.accountAllocations[0]?.accountId
+      
+      if (missionsAccountId) {
+        ledgerLines.push({
+          journal_entry_id: journalEntry.id,
+          account_id: missionsAccountId,
+          fund_id: input.missionsFundId,
+          debit: remainingMissionsCash,
+          credit: 0,
+          memo: 'Cash received - Missions',
+          donor_id: null,
         })
       }
 
-      // Missions fund - distribute across accounts
-      if (input.missionsAmount && input.missionsAmount > 0 && input.missionsFundId) {
+      // Credit income account (single entry for remaining missions cash)
+      ledgerLines.push({
+        journal_entry_id: journalEntry.id,
+        account_id: input.generalIncomeAccountId,
+        fund_id: input.missionsFundId,
+        debit: 0,
+        credit: remainingMissionsCash,
+        memo: 'Missions Giving - Cash',
+        donor_id: null,
+      })
+    }
+
+    // Designated items - distribute across accounts
+    for (const item of input.designatedItems) {
+      if (item.amount > 0) {
         for (const allocProp of allocationProportions) {
-          const allocatedAmount = input.missionsAmount * allocProp.proportion
+          const allocatedAmount = item.amount * allocProp.proportion
           if (allocatedAmount > 0.01) {
             ledgerLines.push({
-              journal_entry_id: mainEntry.id,
+              journal_entry_id: journalEntry.id,
               account_id: allocProp.accountId,
-              fund_id: input.missionsFundId,
+              fund_id: item.fundId,
               debit: allocatedAmount,
               credit: 0,
-              memo: 'Cash received - Missions',
+              memo: `Cash received - ${item.description}`,
+              donor_id: null,
             })
           }
         }
 
-        // Credit income account (single entry for total)
+        // Credit designated income account (single entry for total)
         ledgerLines.push({
-          journal_entry_id: mainEntry.id,
-          account_id: input.generalIncomeAccountId,
-          fund_id: input.missionsFundId,
+          journal_entry_id: journalEntry.id,
+          account_id: item.accountId,
+          fund_id: item.fundId,
           debit: 0,
-          credit: input.missionsAmount,
-          memo: 'Missions Giving',
+          credit: item.amount,
+          memo: item.description,
+          donor_id: null,
         })
       }
+    }
 
-      // Designated items - distribute across accounts
-      for (const item of input.designatedItems) {
-        if (item.amount > 0) {
-          for (const allocProp of allocationProportions) {
-            const allocatedAmount = item.amount * allocProp.proportion
-            if (allocatedAmount > 0.01) {
-              ledgerLines.push({
-                journal_entry_id: mainEntry.id,
-                account_id: allocProp.accountId,
-                fund_id: item.fundId,
-                debit: allocatedAmount,
-                credit: 0,
-                memo: `Cash received - ${item.description}`,
-              })
-            }
-          }
+    // Step 3: Insert all ledger lines
+    if (ledgerLines.length === 0) {
+      // Rollback journal entry if no ledger lines
+      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
+      return { success: false, error: 'No ledger lines to create' }
+    }
 
-          // Credit designated income account (single entry for total)
-          ledgerLines.push({
-            journal_entry_id: mainEntry.id,
-            account_id: item.accountId,
-            fund_id: item.fundId,
-            debit: 0,
-            credit: item.amount,
-            memo: item.description,
-          })
+    // Prepare ledger lines for insert - only include donor_id if it's not null
+    // This handles cases where the donor_id column might not exist yet
+    const ledgerLinesToInsert = ledgerLines.map(line => {
+      const { donor_id, ...rest } = line
+      // Only include donor_id if it's not null (to avoid errors if column doesn't exist)
+      if (donor_id) {
+        return { ...rest, donor_id }
+      }
+      return rest
+    })
+
+    const { error: ledgerError } = await (supabase as any)
+      .from('ledger_lines')
+      .insert(ledgerLinesToInsert)
+
+    if (ledgerError) {
+      console.error('Ledger lines error:', ledgerError)
+      console.error('Ledger lines data (first 3):', JSON.stringify(ledgerLinesToInsert.slice(0, 3), null, 2))
+      console.error('Total ledger lines:', ledgerLinesToInsert.length)
+      // Rollback journal entry
+      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
+      
+      // Provide helpful error message
+      const errorMessage = ledgerError.message || ledgerError.details || JSON.stringify(ledgerError)
+      if (errorMessage.includes('donor_id') || errorMessage.includes('column')) {
+        return { 
+          success: false, 
+          error: `Database error: ${errorMessage}. Please ensure all migrations have been run, including add_donor_id_to_ledger_lines.sql` 
         }
       }
+      
+      return { 
+        success: false, 
+        error: `Failed to create ledger entries: ${errorMessage}` 
+      }
+    }
 
-      // Insert ledger lines for main entry
-      if (ledgerLines.length > 0) {
-        const { error: ledgerError } = await (supabase as any)
-          .from('ledger_lines')
-          .insert(ledgerLines)
+    // Step 4: Verify the entry is balanced
+    const totalDebits = ledgerLines.reduce((sum, line) => sum + line.debit, 0)
+    const totalCredits = ledgerLines.reduce((sum, line) => sum + line.credit, 0)
+    const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
 
-        if (ledgerError) {
-          console.error('Ledger lines error:', ledgerError)
-          // Rollback all
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return { success: false, error: 'Failed to create ledger entries' }
-        }
-
-        // Verify main entry is balanced
-        const totalDebits = ledgerLines.reduce((sum, line) => sum + line.debit, 0)
-        const totalCredits = ledgerLines.reduce((sum, line) => sum + line.credit, 0)
-        const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
-
-        if (!isBalanced) {
-          console.error('Unbalanced entry. Debits:', totalDebits, 'Credits:', totalCredits)
-          // Rollback all
-          for (const id of createdJournalEntryIds) {
-            await supabase.from('journal_entries').delete().eq('id', id)
-          }
-          return {
-            success: false,
-            error: `Transaction is not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`,
-          }
-        }
+    if (!isBalanced) {
+      // Calculate breakdown for error message
+      const checksTotal = input.checks.reduce((sum, c) => sum + c.amount, 0)
+      const envelopesTotal = input.envelopes.reduce((sum, e) => sum + e.amount, 0)
+      const designatedTotal = input.designatedItems.reduce((sum, item) => sum + item.amount, 0)
+      
+      // Count debits and credits by type
+      const checkDebits = ledgerLines.filter(l => l.memo?.includes('Check #')).reduce((sum, l) => sum + l.debit, 0)
+      const checkCredits = ledgerLines.filter(l => l.memo?.includes('Check #')).reduce((sum, l) => sum + l.credit, 0)
+      const envelopeDebits = ledgerLines.filter(l => l.memo === 'Envelope donation').reduce((sum, l) => sum + l.debit, 0)
+      const envelopeCredits = ledgerLines.filter(l => l.memo?.includes('Envelope donation')).reduce((sum, l) => sum + l.credit, 0)
+      const generalFundDebits = ledgerLines.filter(l => l.memo === 'Cash received - General Fund').reduce((sum, l) => sum + l.debit, 0)
+      const generalFundCredits = ledgerLines.filter(l => l.memo === 'Tithes & Offerings - General').reduce((sum, l) => sum + l.credit, 0)
+      const missionsDebits = ledgerLines.filter(l => l.memo === 'Cash received - Missions').reduce((sum, l) => sum + l.debit, 0)
+      const missionsCredits = ledgerLines.filter(l => l.memo?.includes('Missions Giving')).reduce((sum, l) => sum + l.credit, 0)
+      const designatedDebits = ledgerLines.filter(l => l.memo?.includes('Cash received -') && !l.memo.includes('General') && !l.memo.includes('Missions')).reduce((sum, l) => sum + l.debit, 0)
+      const designatedCredits = ledgerLines.filter(l => l.memo && !l.memo.includes('Check #') && !l.memo.includes('Envelope') && !l.memo.includes('General') && !l.memo.includes('Missions')).reduce((sum, l) => sum + l.credit, 0)
+      
+      const errorDetails = [
+        `Total Debits: $${totalDebits.toFixed(2)}, Total Credits: $${totalCredits.toFixed(2)}`,
+        `Difference: $${(totalCredits - totalDebits).toFixed(2)}`,
+        ``,
+        `Breakdown:`,
+        `- Checks: Debits $${checkDebits.toFixed(2)}, Credits $${checkCredits.toFixed(2)}`,
+        `- Envelopes: Debits $${envelopeDebits.toFixed(2)}, Credits $${envelopeCredits.toFixed(2)}`,
+        `- General Fund Cash: Debits $${generalFundDebits.toFixed(2)}, Credits $${generalFundCredits.toFixed(2)}`,
+        `- Missions Cash: Debits $${missionsDebits.toFixed(2)}, Credits $${missionsCredits.toFixed(2)}`,
+        `- Designated: Debits $${designatedDebits.toFixed(2)}, Credits $${designatedCredits.toFixed(2)}`,
+        ``,
+        `Input Values:`,
+        `- Checks Total: $${checksTotal.toFixed(2)}`,
+        `- Envelopes Total: $${envelopesTotal.toFixed(2)}`,
+        `- General Fund Amount: $${input.generalFundAmount.toFixed(2)}`,
+        `- General Fund Cash Amount: $${(input.generalFundCashAmount || 0).toFixed(2)}`,
+        `- General Fund Checks Total: $${generalFundChecksTotal.toFixed(2)}`,
+        `- General Fund Envelopes Total: $${generalFundEnvelopesTotal.toFixed(2)}`,
+        `- Remaining General Fund Amount: $${remainingGeneralFundAmount.toFixed(2)}`,
+        `- Missions Amount: $${(input.missionsAmount || 0).toFixed(2)}`,
+        `- Missions Cash Amount: $${missionsCashAmount.toFixed(2)}`,
+        `- Missions Envelopes Total: $${missionsEnvelopesTotal.toFixed(2)}`,
+        `- Designated Total: $${designatedTotal.toFixed(2)}`,
+        `- Total Deposit: $${totalDeposit.toFixed(2)}`,
+      ].join('\n')
+      
+      console.error('Unbalanced entry. Debits:', totalDebits, 'Credits:', totalCredits)
+      console.error(errorDetails)
+      
+      // Rollback journal entry and ledger lines
+      await supabase.from('ledger_lines').delete().eq('journal_entry_id', journalEntry.id)
+      await supabase.from('journal_entries').delete().eq('id', journalEntry.id)
+      return {
+        success: false,
+        error: `Transaction is not balanced. Debits: $${totalDebits.toFixed(2)}, Credits: $${totalCredits.toFixed(2)}.\n\n${errorDetails}`,
       }
     }
 
     revalidatePath('/transactions')
-    return { success: true, journalEntryId: createdJournalEntryIds[0] || '' }
+    return { success: true, journalEntryId: journalEntry.id }
   } catch (error) {
     console.error('Unexpected error:', error)
     return { success: false, error: 'An unexpected error occurred' }
