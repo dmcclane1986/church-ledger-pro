@@ -266,29 +266,29 @@ export default function CheckWriterPage() {
       {/* Section B: Print Layout (Hidden on screen, visible when printing) */}
       <div className="hidden print:block print:absolute print:top-0 print:left-0 w-[8.5in] h-[11in] print-only">
         {/* Check (Top 3.5 inches) */}
-        <div className="absolute top-0 left-0 w-[8.5in] h-[3.5in] border border-gray-400">
-          {/* Church Name: top-[0.3in] left-[0.5in] */}
+        <div className="absolute top-0 left-0 w-[8.5in] h-[3.5in]">
+          {/* Church Name: top-[0.3in] left-[0.5in] }
           <div className="absolute top-[0.3in] left-[0.5in] font-mono text-lg font-bold">
             {churchName}
           </div>
-
+              */}
           {/* Date: top-[0.5in] left-[6.5in] */}
-          <div className="absolute top-[0.5in] left-[6.5in] font-mono text-sm">
+          <div className="absolute top-[0.9in] left-[7.1in] font-mono text-sm">
             {formattedDate}
           </div>
 
           {/* Payee: top-[1.1in] left-[1in] */}
-          <div className="absolute top-[1.1in] left-[1in] font-mono text-base font-bold">
+          <div className="absolute top-[1.4in] left-[1.3in] font-mono text-base font-bold">
             {payee || '_________________________'}
           </div>
 
           {/* Amount (Numeric): top-[1.1in] left-[6.5in] */}
-          <div className="absolute top-[1.1in] left-[6.5in] font-mono text-base font-bold">
+          <div className="absolute top-[1.4in] left-[7.1in] font-mono text-base font-bold">
             ${numericAmount}
           </div>
 
           {/* Amount (Words): top-[1.5in] left-[1in] */}
-          <div className="absolute top-[1.5in] left-[1in] font-mono text-sm">
+          <div className="absolute top-[1.7in] left-[1in] font-mono text-sm">
             {amountInWords || '________________________________________________'}
           </div>
 
@@ -301,11 +301,11 @@ export default function CheckWriterPage() {
         </div>
 
         {/* Voucher 1 (Middle) - top-[3.5in] */}
-        <div className="absolute top-[3.5in] left-0 w-[8.5in] h-[3.5in] border border-gray-400">
-          {/* Church Name: top-[0.3in] left-[0.5in] */}
+        <div className="absolute top-[3.5in] left-0 w-[8.5in] h-[3.5in]">
+          {/* Church Name: top-[0.3in] left-[0.5in] }
           <div className="absolute top-[0.3in] left-[0.5in] font-mono text-lg font-bold">
             {churchName}
-          </div>
+          </div>*/}
 
           {/* Date: top-[0.5in] left-[6.5in] */}
           <div className="absolute top-[0.5in] left-[6.5in] font-mono text-sm">
@@ -341,11 +341,11 @@ export default function CheckWriterPage() {
         </div>
 
         {/* Voucher 2 (Bottom) - top-[7in] */}
-        <div className="absolute top-[7in] left-0 w-[8.5in] h-[3.5in] border border-gray-400">
-          {/* Church Name: top-[0.3in] left-[0.5in] */}
+        <div className="absolute top-[7in] left-0 w-[8.5in] h-[3.5in]">
+          {/* Church Name: top-[0.3in] left-[0.5in] }
           <div className="absolute top-[0.3in] left-[0.5in] font-mono text-lg font-bold">
             {churchName}
-          </div>
+          </div>*/}
 
           {/* Date: top-[0.5in] left-[6.5in] */}
           <div className="absolute top-[0.5in] left-[6.5in] font-mono text-sm">
