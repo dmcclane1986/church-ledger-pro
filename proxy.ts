@@ -119,6 +119,13 @@ export default async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL('/unauthorized', request.url))
       }
     }
+
+    // Protect monthly bills route - Admin and Bookkeeper only
+    if (request.nextUrl.pathname.startsWith('/monthly-bills')) {
+      if (userRole !== 'admin' && userRole !== 'bookkeeper') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url))
+      }
+    }
     
     // Check for dashboard and other routes
     if (!userRole && request.nextUrl.pathname === '/') {

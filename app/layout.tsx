@@ -128,12 +128,14 @@ export default async function RootLayout({
                   </div>
                   )}
 
-                  <a
-                    href="/ap"
-                    className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Accounts Payable
-                  </a>
+                  {canEdit && (
+                    <a
+                      href="/monthly-bills"
+                      className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      Monthly Bills
+                    </a>
+                  )}
 
                   <a
                     href="/reports"
