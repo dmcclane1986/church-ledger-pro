@@ -301,9 +301,12 @@ export function generateDepositReceiptPDF(data: DepositData) {
       const fundCash = fund.cashAmount !== undefined && fund.cashAmount !== null 
         ? fund.cashAmount 
         : totalCash * fundPercentage
-      const fundCheck = fund.checkAmount !== undefined && fund.checkAmount !== null 
-        ? fund.checkAmount 
-        : data.totalChecks * fundPercentage
+      // For check amount: if it's 0, use 0. If undefined/null, calculate from percentage. Otherwise use the provided value.
+      const fundCheck = fund.checkAmount === 0 
+        ? 0 
+        : (fund.checkAmount !== undefined && fund.checkAmount !== null)
+          ? fund.checkAmount 
+          : data.totalChecks * fundPercentage
 
       return [
         fund.fundName + (fund.isRestricted ? ' (Restricted)' : ''),
@@ -445,6 +448,23 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateString: string): string {
+  // Parse date string (YYYY-MM-DD) as local date to avoid timezone issues
+  // PostgreSQL DATE types come as "YYYY-MM-DD" strings, which new Date() 
+  // interprets as UTC midnight, causing date shifts
+  const parts = dateString.split('T')[0].split('-')
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10) - 1 // JavaScript months are 0-indexed
+    const day = parseInt(parts[2], 10)
+    const date = new Date(year, month, day)
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+  // Fallback to original method if format is unexpected
   const date = new Date(dateString + 'T00:00:00')
   return date.toLocaleDateString('en-US', {
     weekday: 'long',

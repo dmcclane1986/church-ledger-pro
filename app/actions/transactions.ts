@@ -1308,10 +1308,6 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
     // Use the provided cash amount, which should be calculatedGeneralFundCash (envelopes + loose cash)
     const generalFundCashTotal = input.generalFundCashAmount || 0
     
-    // Remaining general fund amount is the loose cash (cash total minus envelopes already recorded)
-    // This is the amount that hasn't been recorded yet via envelopes
-    const remainingGeneralFundAmount = Math.max(0, generalFundCashTotal - generalFundEnvelopesTotal)
-
     // Missions fund - calculate missions cash and envelopes
     // Calculate missions cash amount (missionsAmount includes checks and envelopes, so subtract them)
     const missionsChecksTotal = input.checks
@@ -1322,133 +1318,44 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
       .reduce((sum, e) => sum + e.amount, 0)
     const missionsCashAmount = (input.missionsAmount || 0) - missionsChecksTotal - missionsEnvelopesTotal
 
-    // General fund remaining amount (loose cash + untracked items)
-    // Only split across accounts if missions cash > missions envelopes, otherwise all goes to Operating Checking
-    if (remainingGeneralFundAmount > 0.01) {
-      // Check if we should split loose cash (only if missions cash > missions envelopes)
-      const shouldSplitLooseCash = missionsCashAmount > missionsEnvelopesTotal
-      
-      if (shouldSplitLooseCash) {
-        // Calculate missions cash shortfall (how much missions cash is still needed)
-        // missionsCashAmount is already missions loose cash (input.missionsAmount - missionsChecksTotal - missionsEnvelopesTotal)
-        // So missionsCashAmount is the missions loose cash that needs to be allocated
-        // The shortfall is just missionsCashAmount itself (since envelopes are already recorded separately)
-        const missionsCashShortfall = missionsCashAmount
-        
-        // First, allocate loose cash to missions checking up to the shortfall amount
-        const missionsAllocation = Math.min(remainingGeneralFundAmount, missionsCashShortfall)
-        const remainingLooseCash = remainingGeneralFundAmount - missionsAllocation
-        
-        // Route missions allocation to Missions Checking
-        if (missionsAllocation > 0.01 && input.missionsFundId) {
-          // Find missions checking account from account allocations
-          const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
-            const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
-            return account && (
-              account.account_number === 1150 || 
-              account.name.toLowerCase().includes('missions')
-            )
-          })
-          const missionsAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || input.accountAllocations[0]?.accountId
-          
-          if (missionsAccountId) {
-            ledgerLines.push({
-              journal_entry_id: journalEntry.id,
-              account_id: missionsAccountId,
-              fund_id: input.missionsFundId,
-              debit: missionsAllocation,
-              credit: 0,
-              memo: 'Cash received - Missions',
-              donor_id: null,
-            })
-            
-            // Credit missions income account
-            ledgerLines.push({
-              journal_entry_id: journalEntry.id,
-              account_id: input.generalIncomeAccountId,
-              fund_id: input.missionsFundId,
-              debit: 0,
-              credit: missionsAllocation,
-              memo: 'Missions Giving - Cash',
-              donor_id: null,
-            })
-          }
-        }
-        
-        // Route remaining loose cash to Operating Checking
-        if (remainingLooseCash > 0.01) {
-          const operatingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId
-          if (operatingAccountId) {
-            ledgerLines.push({
-              journal_entry_id: journalEntry.id,
-              account_id: operatingAccountId,
-              fund_id: input.generalFundId,
-              debit: remainingLooseCash,
-              credit: 0,
-              memo: 'Cash received - General Fund',
-              donor_id: null,
-            })
-            
-            // Credit general income account
-            ledgerLines.push({
-              journal_entry_id: journalEntry.id,
-              account_id: input.generalIncomeAccountId,
-              fund_id: input.generalFundId,
-              debit: 0,
-              credit: remainingLooseCash,
-              memo: 'Tithes & Offerings - General',
-              donor_id: null,
-            })
-          }
-        }
-      } else {
-        // All loose cash goes to Operating Checking
-        const operatingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId
-        if (operatingAccountId) {
-          ledgerLines.push({
-            journal_entry_id: journalEntry.id,
-            account_id: operatingAccountId,
-            fund_id: input.generalFundId,
-            debit: remainingGeneralFundAmount,
-            credit: 0,
-            memo: 'Cash received - General Fund',
-            donor_id: null,
-          })
-        }
+    // Calculate general fund loose cash (total general fund cash minus envelopes already recorded)
+    // This is the loose cash portion that belongs to general fund (already excludes missions loose cash)
+    const generalFundLooseCash = Math.max(0, generalFundCashTotal - generalFundEnvelopesTotal)
+    
+    // Record general fund loose cash to Operating Checking
+    // This is the general fund portion only (missions loose cash is handled separately below)
+    if (generalFundLooseCash > 0.01) {
+      const operatingAccountId = operatingCheckingAccount?.id || input.accountAllocations[0]?.accountId
+      if (operatingAccountId) {
+        ledgerLines.push({
+          journal_entry_id: journalEntry.id,
+          account_id: operatingAccountId,
+          fund_id: input.generalFundId,
+          debit: generalFundLooseCash,
+          credit: 0,
+          memo: 'Cash received - General Fund',
+          donor_id: null,
+        })
 
-        // Credit income account (single entry for total)
+        // Credit general income account
         ledgerLines.push({
           journal_entry_id: journalEntry.id,
           account_id: input.generalIncomeAccountId,
           fund_id: input.generalFundId,
           debit: 0,
-          credit: remainingGeneralFundAmount,
+          credit: generalFundLooseCash,
           memo: 'Tithes & Offerings - General',
           donor_id: null,
         })
       }
     }
     
-    // Missions fund cash - only record if missions cash > missions envelopes AND loose cash didn't cover it
-    // If missions cash <= missions envelopes, the missions cash is already covered by envelopes
-    // If loose cash covered the shortfall, missions cash is already recorded above
+    // Missions fund loose cash - record missions loose cash separately
     // missionsCashAmount is missions loose cash (input.missionsAmount - missionsChecksTotal - missionsEnvelopesTotal)
-    // So if missionsCashAmount > missionsEnvelopesTotal, we need missionsCashAmount - missionsEnvelopesTotal more
-    // But we may have already allocated some loose cash to cover this shortfall
-    // Calculate how much loose cash was allocated to missions (if any) - this was done above in the shouldSplitLooseCash section
-    // missionsCashAmount is the missions loose cash that needs to be allocated
-    // If we allocated loose cash to missions above, we need to subtract that from what we record here
-    let looseCashCoveredMissions = 0
-    if (missionsCashAmount > missionsEnvelopesTotal && remainingGeneralFundAmount > 0.01) {
-      // This matches the calculation above where missionsAllocation = Math.min(remainingGeneralFundAmount, missionsCashAmount)
-      looseCashCoveredMissions = Math.min(remainingGeneralFundAmount, missionsCashAmount)
-    }
-    // remainingMissionsCash should be missionsCashAmount minus what loose cash already covered
-    // This ensures we only record missions cash that wasn't already covered by envelopes or loose cash
-    const remainingMissionsCash = missionsCashAmount - looseCashCoveredMissions
-    
-    if (remainingMissionsCash > 0.01 && input.missionsFundId) {
-      // Route remaining missions cash to Missions Checking (full amount, not split)
+    // This is the missions loose cash portion that needs to be recorded separately
+    // The form already calculates: totalLooseCash = missionsLooseCash + generalFundLooseCash
+    // So we record missions loose cash to Missions Checking, and general fund loose cash to Operating Checking
+    if (missionsCashAmount > 0.01 && input.missionsFundId) {
       // Find missions checking account from account allocations
       const missionsAccountFromAlloc = input.accountAllocations.find(alloc => {
         const account = accounts?.find((acc: any) => acc.id === alloc.accountId)
@@ -1460,27 +1367,28 @@ export async function recordWeeklyDeposit(input: WeeklyDepositInput) {
       const missionsAccountId = missionsAccountFromAlloc?.accountId || missionsCheckingAccount?.id || input.accountAllocations[0]?.accountId
       
       if (missionsAccountId) {
+        // Debit missions checking account for missions loose cash
         ledgerLines.push({
           journal_entry_id: journalEntry.id,
           account_id: missionsAccountId,
           fund_id: input.missionsFundId,
-          debit: remainingMissionsCash,
+          debit: missionsCashAmount,
           credit: 0,
           memo: 'Cash received - Missions',
           donor_id: null,
         })
-      }
 
-      // Credit income account (single entry for remaining missions cash)
-      ledgerLines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: input.generalIncomeAccountId,
-        fund_id: input.missionsFundId,
-        debit: 0,
-        credit: remainingMissionsCash,
-        memo: 'Missions Giving - Cash',
-        donor_id: null,
-      })
+        // Credit missions income account for missions loose cash
+        ledgerLines.push({
+          journal_entry_id: journalEntry.id,
+          account_id: input.generalIncomeAccountId,
+          fund_id: input.missionsFundId,
+          debit: 0,
+          credit: missionsCashAmount,
+          memo: 'Missions Giving - Cash',
+          donor_id: null,
+        })
+      }
     }
 
     // Designated items - distribute across accounts

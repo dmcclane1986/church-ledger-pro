@@ -46,6 +46,22 @@ export default function FundSummaryReport() {
     }).format(amount)
   }
 
+  // Format date for PDF - parse as local date to avoid timezone issues
+  const formatDateForPDF = (dateString: string) => {
+    const parts = dateString.split('T')[0].split('-')
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10)
+      const month = parseInt(parts[1], 10) - 1 // JavaScript months are 0-indexed
+      const day = parseInt(parts[2], 10)
+      return new Date(year, month, day).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    }
+    return new Date(dateString).toLocaleDateString('en-US')
+  }
+
   // Calculate totals
   const unrestrictedFunds = data.filter(f => !f.is_restricted)
   const restrictedFunds = data.filter(f => f.is_restricted)
@@ -84,7 +100,7 @@ export default function FundSummaryReport() {
         churchAddress: address,
         reportTitle: 'Fund Summary Report',
         reportSubtitle: 'Fund Activity Report',
-        reportDate: `Period: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
+        reportDate: `Period: ${formatDateForPDF(startDate)} - ${formatDateForPDF(endDate)}`
       })
       
       let currentY = yPosition

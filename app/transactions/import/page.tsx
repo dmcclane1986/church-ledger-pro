@@ -45,8 +45,36 @@ async function getCheckingAccounts() {
 }
 
 async function getFeesAccount() {
-  // Get bank fees expense account (typically in 5000s)
+  // Get bank fees expense account - prioritize 5670 - Tithe.ly Fees
   const supabase = await createServerClient()
+  
+  // First, try to find account 5670 - Tithe.ly Fees
+  const { data: tithelyAccount, error: tithelyError } = await supabase
+    .from('chart_of_accounts')
+    .select('*')
+    .eq('account_type', 'Expense')
+    .eq('is_active', true)
+    .eq('account_number', 5670)
+    .single()
+  
+  if (!tithelyError && tithelyAccount) {
+    return tithelyAccount
+  }
+  
+  // If not found, try to find by name containing "Tithe.ly" or "tithely"
+  const { data: tithelyByName, error: nameError } = await supabase
+    .from('chart_of_accounts')
+    .select('*')
+    .eq('account_type', 'Expense')
+    .eq('is_active', true)
+    .ilike('name', '%tithe.ly%')
+    .limit(1)
+  
+  if (!nameError && tithelyByName && tithelyByName.length > 0) {
+    return tithelyByName[0]
+  }
+  
+  // Fallback: Get first expense account in 5000s range
   const { data, error } = await supabase
     .from('chart_of_accounts')
     .select('*')

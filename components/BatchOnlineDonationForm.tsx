@@ -44,16 +44,33 @@ export default function BatchOnlineDonationForm({
     totalAmount: number
   } | null>(null)
 
+  // Find default account (1100 Operations Checking)
+  const getDefaultAccountId = () => {
+    const defaultAccount = checkingAccounts.find(
+      account => account.account_number === 1100 || 
+                 account.name.toLowerCase().includes('operations checking')
+    )
+    return defaultAccount?.id || checkingAccounts[0]?.id || ''
+  }
+
   // Form state
   const [date, setDate] = useState(getTodayLocalDate())
-  const [checkingAccountId, setCheckingAccountId] = useState(checkingAccounts[0]?.id || '')
+  const [checkingAccountId, setCheckingAccountId] = useState(getDefaultAccountId())
   const [netDeposit, setNetDeposit] = useState('')
   const [processingFees, setProcessingFees] = useState('')
   const [description, setDescription] = useState('Online donation batch')
   const [referenceNumber, setReferenceNumber] = useState('')
   
-  // Default income account (first one)
-  const defaultIncomeAccountId = incomeAccounts[0]?.id || ''
+  // Default income account (4100 - Tithes and Offerings)
+  const getDefaultIncomeAccountId = () => {
+    const defaultAccount = incomeAccounts.find(
+      account => account.account_number === 4100 || 
+                 account.name.toLowerCase().includes('tithes') ||
+                 account.name.toLowerCase().includes('offerings')
+    )
+    return defaultAccount?.id || incomeAccounts[0]?.id || ''
+  }
+  const defaultIncomeAccountId = getDefaultIncomeAccountId()
 
   // Donation rows
   const [donationRows, setDonationRows] = useState<DonationRow[]>([

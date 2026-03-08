@@ -82,7 +82,26 @@ export default function UserManagement() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // For timestamps (created_at, updated_at), parse as-is since they include time
+    // For date-only strings (YYYY-MM-DD), parse as local date to avoid timezone issues
+    const date = new Date(dateString)
+    // Check if it's a date-only string (no time component)
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Parse as local date
+      const parts = dateString.split('-')
+      const year = parseInt(parts[0], 10)
+      const month = parseInt(parts[1], 10) - 1
+      const day = parseInt(parts[2], 10)
+      return new Date(year, month, day).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+    // For timestamps, use as-is
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

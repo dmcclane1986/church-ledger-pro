@@ -697,8 +697,8 @@ export default function WeeklyDepositForm({
         generalFundCashAmount: calculatedGeneralFundCash || undefined,
         generalFundCheckAmount: calculatedGeneralFundChecks || undefined,
         missionsAmount: missionsTotal,
-        missionsCashAmount: missionsCashTotal || undefined,
-        missionsCheckAmount: parseFloat(missionsCheckAmount) || undefined,
+        missionsCashAmount: missionsCashTotal > 0 ? missionsCashTotal : undefined,
+        missionsCheckAmount: parseFloat(missionsCheckAmount) > 0 ? parseFloat(missionsCheckAmount) : undefined,
         missionsFundId: missionsFundId || undefined,
         designatedItems: designatedItems
           .filter((item: any) => parseFloat(item.amount) > 0)
@@ -737,11 +737,11 @@ export default function WeeklyDepositForm({
           // Find fund names for allocations
           const fundAllocations = []
           
-          // Helper function to parse amount - returns number if valid (including 0), undefined if empty
-          const parseAmount = (value: string): number | undefined => {
-            if (!value || value.trim() === '') return undefined
+          // Helper function to parse amount - returns 0 if empty, otherwise returns the parsed number
+          const parseAmount = (value: string): number => {
+            if (!value || value.trim() === '') return 0
             const parsed = parseFloat(value)
-            return isNaN(parsed) ? undefined : parsed
+            return isNaN(parsed) ? 0 : parsed
           }
           
           // Add general fund allocation
